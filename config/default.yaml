@@ -1,0 +1,19 @@
+---
+# Neural collapse config file. All must be specified
+Model:
+  model-name: resnet18       # Name of model in "our_models"
+  embedding_layers:          # Intermediate layers to use for NC loss with weightings
+    layer3: 0.0
+    layer4: 0.003
+
+Data:
+  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
+  batch-size: 512        # Mini-batch size
+
+Logging:
+  # When to store weights and calculate measurements
+  save-dir: logs/default
+
+Measurements:
+  measures: [TraceMeasure]
+...
