@@ -3,7 +3,7 @@
 # Downloaded datasets
 **/datasets
 # Logs from data runs
-# logs/
+logs/
 
 # Vim swap
 [._]*.s[a-v][a-z]
