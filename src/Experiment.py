@@ -43,13 +43,11 @@ class Experiment:
         measurement_dict = self.measures
 
         all_measurements = OrderedDict()
-        for measurement_id, measurer in measurement_dict:
-            measurement_result = measurer.measure(
-                self.wrapped_model, self.dataset
-            )
+        for measurement_id, measurer in measurement_dict.items():
+            measurement_result = measurer.measure(measurer, self.wrapped_model, self.dataset)
             all_measurements[measurement_id] = measurement_result
 
-        self.logger.write_to_log(all_measurements)
+        self.logger.write_to_measurements(all_measurements)
 
         # pbar_batch = tqdm.tqdm(self.dataset.train_loader, position=1+pbar_pos_offset, leave=False, ncols=None)
         # pbar_batch.set_description(f'')
@@ -57,6 +55,6 @@ class Experiment:
 
 
 if __name__ == "__main__":
-    config_path = "../config/CELoss.yaml"
+    config_path = "../config/default.yaml"
     exp = Experiment(config_path)
     exp.do_measurements()

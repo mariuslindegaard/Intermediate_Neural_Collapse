@@ -1,9 +1,10 @@
 import torch
 import Models
 from DatasetWrapper import DatasetWrapper
+import tqdm
 
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Union
 
 
 class Measurer:
@@ -16,11 +17,12 @@ class Measurer:
 
 class TraceMeasure(Measurer):
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper) -> Dict[str, float]:
+        wrapped_model.base_model.eval()
         data_loader = dataset.train_loader
         measurements = defaultdict(int)
 
         device = next(wrapped_model.parameters()).device
-        for inputs, targets in data_loader:
+        for inputs, targets in tqdm.tqdm(data_loader):
 
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]

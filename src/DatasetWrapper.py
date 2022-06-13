@@ -24,7 +24,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num_workers', default=1)
+        self.num_workers = data_cfg.get('num_workers', 1)
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
@@ -53,7 +53,7 @@ class DatasetWrapper:
                                          std=[x/255.0 for x in [63.0, 62.1, 66.7]])
         train_tx = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip,
+            transforms.RandomHorizontalFlip(),
             transforms.RandomRotation(15),
             transforms.ToTensor(),
             normalize

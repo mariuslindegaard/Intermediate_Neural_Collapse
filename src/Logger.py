@@ -7,7 +7,7 @@ from typing import List, Dict, Union, DefaultDict, Hashable
 from collections import OrderedDict, defaultdict
 import datetime
 
-
+import torch
 
 
 class SaveDirs:
@@ -64,13 +64,14 @@ class Logger:
         self.config_path = config_path
         self.logging_path = None
 
-    def write_to_log(self, logs: Dict[Dict[Hashable, float]]):  # TODO(marius): Add test to verify all data is in correct order
+    def write_to_log(self, logs: Dict[Hashable, float]):  # TODO(marius): Add test to verify all data is in correct order
         """Log all logging values to file.
 
-        Assumes values in logs are the same eaach time, with the same ordering. This b.c. it writes a single line to a
-        csv file.
+        :param logs: Dict of values to log.
+
+        Assumes keys in logs are the same with identical ordering each time, with the same ordering.
+        This b.c. it writes a single line to a csv file with the key indexing only on the top line.
         """
-        raise NotImplementedError("Needs updating for new measurements")  # TODO(marius)
         if self.logging_path is None:
             self.logging_path = os.path.join(self.save_dirs.base, "log.csv")
             with open(self.logging_path, "w") as log_file:
@@ -80,6 +81,30 @@ class Logger:
         with open(self.logging_path, "a") as log_file:
             log_file.write(",".join(map(str, logs.values())))
             log_file.write("\n")
+
+    def write_to_measurements(self, measurements: Dict[Hashable, Dict[Hashable, float]]):
+        """Writes to the measurement files from a (dict of) dict of measurements.
+
+        :param measurements: Specifies {'measure_type': {'specific_measure_1': 0.5, 'specific_measure_2': 3.14}, ...}
+            measure_type gives filename, specific measure gives column in file. (Specific measures must have same ordering between writes.)
+
+        Assumes keys in each measure type are the same with identical ordering each time, with the same ordering.
+        This b.c. it writes a single line to a csv file with the key indexing only on the top line.
+        """
+        for measure_str, measurement_dict in measurements.items():
+            filepath = os.path.join(self.save_dirs.measurements, f'{measure_str}.csv')
+            if not os.path.exists(filepath):
+                with open(filepath, "w") as f:
+                    f.write(",".join(map(str, measurement_dict.keys())) + '\n')
+
+            with open(filepath, 'a') as f:
+                f.write(','.join(map(str, map(self._torch_tensor_to_float, measurement_dict.values()))) + '\n')
+
+    @staticmethod
+    def _torch_tensor_to_float(value: Union[float, torch.Tensor]):
+        if type(value) is torch.Tensor:
+            return value.item()
+        return value
 
     def copy_config_to_dir(self):  # TODO(marius): Make copy to tmp at start, and copy to permanent when finished
         shutil.copy(self.config_path, os.path.join(self.save_dirs.base, "config.yaml"), follow_symlinks=True)
@@ -99,7 +124,6 @@ class Logger:
         except OSError as e:
             warnings.warn("Failed to create symlink!")
             raise e
-    # Handle critical errors
 
 
 if __name__ == "__main__":
