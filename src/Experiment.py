@@ -54,7 +54,11 @@ class Experiment:
         # pbar_batch.close()
 
 
-if __name__ == "__main__":
+def _test():
     config_path = "../config/default.yaml"
     exp = Experiment(config_path)
     exp.do_measurements()
+
+
+if __name__ == "__main__":
+    _test()
