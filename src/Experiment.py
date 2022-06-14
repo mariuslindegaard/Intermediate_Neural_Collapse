@@ -45,7 +45,7 @@ class Experiment:
 
         all_measurements = OrderedDict()
         for measurement_id, measurer in measurement_dict.items():
-            measurement_result = measurer.measure(measurer, self.wrapped_model, self.dataset, share_cache=shared_cache)
+            measurement_result = measurer.measure(measurer, self.wrapped_model, self.dataset, shared_cache=shared_cache)
             all_measurements[measurement_id] = measurement_result
 
         self.logger.write_to_measurements(all_measurements)
