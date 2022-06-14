@@ -41,10 +41,11 @@ class Experiment:
     def do_measurements(self):
         """Do the intended measurements on the model"""
         measurement_dict = self.measures
+        shared_cache = Measurer.SharedMeasurementVars()
 
         all_measurements = OrderedDict()
         for measurement_id, measurer in measurement_dict.items():
-            measurement_result = measurer.measure(measurer, self.wrapped_model, self.dataset)
+            measurement_result = measurer.measure(measurer, self.wrapped_model, self.dataset, share_cache=shared_cache)
             all_measurements[measurement_id] = measurement_result
 
         self.logger.write_to_measurements(all_measurements)
@@ -58,6 +59,7 @@ def _test():
     config_path = "../config/default.yaml"
     exp = Experiment(config_path)
     exp.do_measurements()
+
 
 
 if __name__ == "__main__":

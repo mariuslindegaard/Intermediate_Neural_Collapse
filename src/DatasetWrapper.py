@@ -13,8 +13,9 @@ class DatasetWrapper:
     test_loader: DataLoader
     input_batch_shape: torch.Size
     target_batch_shape: torch.Size
-    is_one_hot: bool
     data_id: str
+    is_one_hot: bool
+    num_classes: int
     batch_size: int
     num_workers: int = 1
 
@@ -68,8 +69,8 @@ class DatasetWrapper:
         test_data = datasets.CIFAR10(root=self.data_download_dir, train=False, download=download,
                                      transform=test_tx)
         self.is_one_hot = False
+        self.num_classes = 10
         # self.input_shape = (32, 32, 3)
-        # self.num_classes = 10
 
         return train_data, test_data
 
@@ -86,10 +87,10 @@ class DatasetWrapper:
                                     transform=tx)
         test_data = datasets.MNIST(root=self.data_download_dir, train=False, download=download,
                                    transform=tx)
-        self.is_one_hot = False
 
+        self.num_classes = 10
+        self.is_one_hot = False
         # self.input_shape = (32, 32, 1)
-        # self.num_classes = 10
 
         return train_data, test_data
 
