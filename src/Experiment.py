@@ -5,6 +5,7 @@ from typing import Dict
 import tqdm
 import yaml
 from collections import OrderedDict
+import pandas as pd
 
 import Logger
 from DatasetWrapper import DatasetWrapper
@@ -36,7 +37,8 @@ class Experiment:
         # TODO(marius): Get a hold on what is happening with this config copying
         self.logger.copy_config_to_dir()
 
-        self.measures = {measurement_str: getattr(Measurer, measurement_str) for measurement_str in measurements_cfg['measures']}
+        self.measures = {measurement_str: getattr(Measurer, measurement_str)
+                         for measurement_str in measurements_cfg['measures']}
 
     def do_measurements(self):
         """Do the intended measurements on the model"""
@@ -45,8 +47,11 @@ class Experiment:
 
         all_measurements = OrderedDict()
         for measurement_id, measurer in measurement_dict.items():
-            measurement_result = measurer.measure(measurer, self.wrapped_model, self.dataset, shared_cache=shared_cache)
-            all_measurements[measurement_id] = measurement_result
+            measurement_result_df: pd.DataFrame = measurer.measure(
+                measurer, self.wrapped_model, self.dataset, shared_cache=shared_cache
+            )
+            assert 'value' in measurement_result_df.columns, "Measurement dataframe must contain 'value' field."
+            all_measurements[measurement_id] = measurement_result_df
 
         self.logger.write_to_measurements(all_measurements)
 
@@ -59,7 +64,6 @@ def _test():
     config_path = "../config/default.yaml"
     exp = Experiment(config_path)
     exp.do_measurements()
-
 
 
 if __name__ == "__main__":

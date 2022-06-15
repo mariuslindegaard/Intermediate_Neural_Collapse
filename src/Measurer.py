@@ -4,30 +4,37 @@ import torch.utils.data
 import Models
 from DatasetWrapper import DatasetWrapper
 import tqdm
+import pandas as pd
 
-import functools
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List, Any
 
 import utils
+
 
 class Measurer:
     def __init__(self):
         pass
 
-    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> Dict[str, float]:
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        """Measurement method taking the model and dataset to generate measurements.
+
+        Output is a list with one entry per measurement. "value" is the value of the data, with all other dict entries seen as data parameters.
+        """
         raise NotImplementedError("Measures should overwrite this method!")
 
 
 class TraceMeasure(Measurer):
-    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> Dict[str, float]:
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
             shared_cache = SharedMeasurementVars()
 
         wrapped_model.base_model.eval()
-        data_loader = dataset.train_loader
-        measurements = defaultdict(float)
         device = next(wrapped_model.parameters()).device
+        data_loader = dataset.train_loader
+
+        class_sums: Dict[Dict[int, float]] = defaultdict(lambda: defaultdict(float))  # Dict of, for each layer a dict of class number to total norm.
+        class_num_data: Dict[int, int] = defaultdict(int)  # Dict of number of datapoints per class
 
         for inputs, targets in tqdm.tqdm(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
@@ -35,16 +42,20 @@ class TraceMeasure(Measurer):
             one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
 
             for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                class_num_data[class_idx] += len(class_batch_indexes)
                 for layer_name, activations in embeddings.items():
                     # TODO(marius): Verify calculation (norm over sample, sum over batch)
-                    measurements[layer_name+f"/{class_idx}"] += torch.sum(
+                    class_sums[layer_name][class_idx] += torch.sum(
                         torch.linalg.norm(activations[class_batch_indexes])
                     ).item()
 
-        for layer_name in measurements.keys():
-            measurements[layer_name] /= len(data_loader.dataset)
+        out: List[Dict[str, Any]] = []  # Output to return. List of different value entries, one for each datapoint.
+        for layer_name, layer_dict in class_sums.items():
+            for class_idx in layer_dict.keys():
+                layer_class_average = class_sums[layer_name][class_idx] / class_num_data[class_idx]
+                out.append({'value': layer_class_average, 'layer_name': layer_name, 'class': class_idx})
 
-        return measurements
+        return pd.DataFrame(out)
 
 
 class SharedMeasurementVars:
@@ -170,5 +181,3 @@ def _test_cache():
 
 if __name__ == '__main__':
     _test_cache()
-
-

@@ -1,23 +1,21 @@
 import warnings
-from dataclasses import dataclass
 import os
 import subprocess
 import shutil
-from typing import List, Dict, Union, DefaultDict, Hashable
-from collections import OrderedDict, defaultdict
+from typing import Dict, Union, Hashable
 import datetime
+import pandas as pd
 
 import torch
 
 
 class SaveDirs:
     def __init__(self, dirname: str):
-        root_dir = ""
         try:
             root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
         except OSError as e:  # TODO(marius): Make exception catching less general
             warnings.warn("Finding git root directory failed with the following error message:\n"+str(e))
-            root_dir = ""
+            root_dir = os.getcwd()
             warnings.warn(f"Using '{root_dir}' as root directory")
 
         self._base = os.path.join(
@@ -25,6 +23,7 @@ class SaveDirs:
             dirname,
             datetime.datetime.now().isoformat(timespec='minutes')
         )
+        idx = 0
         while True:
             try:
                 os.makedirs(self._base)
@@ -32,7 +31,12 @@ class SaveDirs:
                 if e.errno != 17:
                     warnings.warn("Got other OSError than expected for file exists:")
                     warnings.warn(str(e))
-                self._base += '_'
+                if self._base.endswith(f'_{idx}'):
+                    self._base = self._base[:-len(str(idx))]
+                else:
+                    self._base += '_'
+                idx += 1
+                self._base = self._base + str(idx)
             else:
                 break
 
@@ -82,23 +86,32 @@ class Logger:
             log_file.write(",".join(map(str, logs.values())))
             log_file.write("\n")
 
-    def write_to_measurements(self, measurements: Dict[Hashable, Dict[Hashable, float]]):
-        """Writes to the measurement files from a (dict of) dict of measurements.
+    def write_to_measurements(self, measurements: Dict[Hashable, pd.DataFrame]):
+        """Writes to the measurement files from a dict of dataframes of measurements.
 
-        :param measurements: Specifies {'measure_type': {'specific_measure_1': 0.5, 'specific_measure_2': 3.14}, ...}
-            measure_type gives filename, specific measure gives column in file. (Specific measures must have same ordering between writes.)
+        :param measurements: Specifies {'measure_type': df_1, ...} where df contains a column 'values' and
+            all other columns are metadata for that specific value. measure_type gives filename.
 
-        Assumes keys in each measure type are the same with identical ordering each time, with the same ordering.
-        This b.c. it writes a single line to a csv file with the key indexing only on the top line.
         """
-        for measure_str, measurement_dict in measurements.items():
+        for measure_str, measurement_df in measurements.items():
+            # Split df into heading and contained data
+            df_csv_str = measurement_df.to_csv()
+            start_second_line_idx = df_csv_str.find('\n') + 1
+            heading, data = df_csv_str[:start_second_line_idx], df_csv_str[start_second_line_idx:]
+
             filepath = os.path.join(self.save_dirs.measurements, f'{measure_str}.csv')
+            # Write heading if file does not exist
             if not os.path.exists(filepath):
                 with open(filepath, "w") as f:
-                    f.write(",".join(map(str, measurement_dict.keys())) + '\n')
+                    f.write(heading)
 
-            with open(filepath, 'a') as f:
-                f.write(','.join(map(str, map(self._torch_tensor_to_float, measurement_dict.values()))) + '\n')
+            # Append new data to file, verifying that heading is the same as for the file in general.
+            with open(filepath, 'a+') as f:
+                f.seek(0)
+                file_heading = f.readline()
+                assert heading == file_heading, f"Columns of df is not the same as in file, {heading}{file_heading}."
+                f.seek(0, 2)  # Seek to end of file
+                f.write(data)
 
     @staticmethod
     def _torch_tensor_to_float(value: Union[float, torch.Tensor]):
