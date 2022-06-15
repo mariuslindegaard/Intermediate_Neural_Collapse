@@ -95,7 +95,7 @@ class Logger:
         """
         for measure_str, measurement_df in measurements.items():
             # Split df into heading and contained data
-            df_csv_str = measurement_df.to_csv()
+            df_csv_str = measurement_df.to_csv(index=False)
             start_second_line_idx = df_csv_str.find('\n') + 1
             heading, data = df_csv_str[:start_second_line_idx], df_csv_str[start_second_line_idx:]
 
