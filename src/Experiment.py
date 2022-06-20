@@ -29,7 +29,7 @@ class Experiment:
         self.logger = Logger.Logger(logging_cfg, config_path)
 
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.wrapped_model = Models.get_resnet18_model(model_cfg)  # TODO(Marius): Support other models
+        self.wrapped_model = Models.get_model(model_cfg)  # TODO(Marius): Support other models
         self.wrapped_model.base_model.to(device)
 
         self.dataset = DatasetWrapper(data_cfg)

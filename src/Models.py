@@ -35,17 +35,24 @@ class ForwardHookedOutput(nn.Module):
         out = self.base_model(x)
         return out, self.hook_out
 
+def get_model(model_cfg: Dict):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    assert model_cfg['model-name'] == 'resnet18', "Resnet18 is always used for now. TODO to implement other models."
+    base_model = models.resnet18(pretrained=True)  # TODO(marius): Make more models available than resnet18
+    base_model.to(device)
+    out_layers = model_cfg['embedding_layers']
+    ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
+    return ret_model
 
 def get_resnet18_model(model_cfg: Dict):
     # TODO(marius): Add support for mnist single channel input data
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    base_model = models.resnet18(pretrained=True)  # TODO(marius): Make more models available than resnet18
-    base_model.fc = nn.Linear(in_features=512, out_features=10, bias=True)
-    base_model.to(device)
+    # base_model.fc = nn.Linear(in_features=512, out_features=10, bias=True)
+    # base_model.to(device)
 
     # out_layers = {f'layer{i}': 1 for i in range(3, 5)}
-    out_layers = model_cfg['embedding_layers']
-    ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
+    # out_layers = model_cfg['embedding_layers']
+    # ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
+    raise NotImplementedError()
     return ret_model
 
 
