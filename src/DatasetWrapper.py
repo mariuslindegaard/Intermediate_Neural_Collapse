@@ -29,7 +29,9 @@ class DatasetWrapper:
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
-            'mnist': DatasetWrapper.mnist
+            'mnist': DatasetWrapper.mnist,
+            'cifar100': DatasetWrapper.cifar100,
+            'imagenet': DatasetWrapper.imagenet
         }
 
         if not self.data_id.lower() in id_mapping.keys():
@@ -37,7 +39,7 @@ class DatasetWrapper:
                                       f"Id must be one of \n{id_mapping.keys()}")
 
         # Prepeare datset
-        train_data, test_data = id_mapping[self.data_id](self, data_cfg, *args, **kwargs)
+        train_data, test_data = id_mapping[self.data_id.lower()](self, data_cfg, *args, **kwargs)
 
         self.train_loader = DataLoader(train_data, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
         self.test_loader = DataLoader(test_data, batch_size=self.batch_size, num_workers=self.num_workers)
@@ -46,6 +48,32 @@ class DatasetWrapper:
         self.input_batch_shape = tmp_inputs.size()
         self.target_batch_shape = tmp_targets.size()
 
+    def cifar100(self, data_cfg: Optional[Dict] = None, download=True):
+        """Cifar100 dataset"""
+
+        normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
+                                         std=[x/255.0 for x in [63.0, 62.1, 66.7]])
+        train_tx = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(15),
+            transforms.ToTensor(),
+            normalize
+        ])
+        test_tx = transforms.Compose([
+            transforms.ToTensor(),
+            normalize
+        ])
+
+        train_data = datasets.CIFAR100(root=self.data_download_dir, train=True, download=download,
+                                       transform=train_tx)
+        test_data = datasets.CIFAR100(root=self.data_download_dir, train=False, download=download,
+                                      transform=test_tx)
+        self.is_one_hot = False
+        self.num_classes = 100
+        # self.input_shape = (32, 32, 3)
+
+        return train_data, test_data
 
     def cifar10(self, data_cfg: Optional[Dict] = None, download=True):
         """Cifar10 dataset"""
@@ -73,6 +101,34 @@ class DatasetWrapper:
         # self.input_shape = (32, 32, 3)
 
         return train_data, test_data
+
+    def imagenet(self, data_cfg: Optional[Dict] = None, download=True):
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        train_tx = transforms.Compose([
+            transforms.RandomCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        test_tx = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize
+        ])
+        print(self.data_download_dir)
+        train_data = datasets.ImageNet(root=self.data_download_dir, train=True, download=download,
+                                       transform=train_tx)
+        test_data = datasets.ImageNet(root=self.data_download_dir, train=False, download=download,
+                                      transform=test_tx)
+        self.is_one_hot = False
+        self.num_classes = 1000
+
+        return train_data, test_data
+
+
 
     def mnist(self, data_cfg: Optional[Dict] = None, download=True):
         """Mnist dataset"""

@@ -3,11 +3,15 @@
 Model:
   model-name: resnet18       # Name of model in "our_models"
   embedding_layers:          # Intermediate layers to use for NC loss with weightings
+    maxpool: 0.0
+    layer1: 0.0
+    layer2: 0.0
     layer3: 0.0
     layer4: 0.003
+    avgpool: 0.0
 
 Data:
-  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: cifar100   # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 512        # Mini-batch size
 
 Logging:
