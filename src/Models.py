@@ -37,9 +37,16 @@ class ForwardHookedOutput(nn.Module):
 
 def get_model(model_cfg: Dict):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    assert model_cfg['model-name'] == 'resnet18', "Resnet18 is always used for now. TODO to implement other models."
-    base_model = models.resnet18(pretrained=True)  # TODO(marius): Make more models available than resnet18
-    base_model.to(device)
+    model_name = model_cfg['model-name'].lower()
+
+    if model_name == 'resnet18':
+        base_model = models.resnet18(pretrained=False)  # TODO(marius): Make more models available than resnet18
+        base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=10)  # TODO(marius): Make use num classes
+        base_model.to(device)
+    else:
+        assert model_cfg['model-name'] == 'resnet18', "Resnet18 is always used for now. TODO to implement other models."
+        raise NotImplementedError
+
     out_layers = model_cfg['embedding_layers']
     ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
     return ret_model

@@ -25,7 +25,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num_workers', 1)
+        self.num_workers = data_cfg.get('num-workers', 4)
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,

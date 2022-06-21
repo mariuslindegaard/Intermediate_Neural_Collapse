@@ -2,7 +2,7 @@ import warnings
 import os
 import subprocess
 import shutil
-from typing import Dict, Union, Hashable, Optional, Tuple, List
+from typing import Dict, Union, Hashable, Optional, Tuple, List, Iterable
 import datetime
 import pandas as pd
 
@@ -74,11 +74,16 @@ class SaveDirs:
 class Logger:
     save_dirs: SaveDirs  # Save directories
     config_path: str  # Path to config file
+    log_epochs: Iterable[int]
 
     def __init__(self, logging_cfg: Dict, config_path: str):
         self.save_dirs = SaveDirs(logging_cfg['save-dir'])
         self.config_path = config_path
         self.logging_path = None
+        if 'log-epochs' in logging_cfg.keys():
+            self.log_epochs = logging_cfg['log-epochs']
+        else:
+            self.log_epochs = range(1, 2000, logging_cfg['log-interval'])
 
     def write_to_log(self, logs: Dict[Hashable, float]):  # TODO(marius): Add test to verify all data is in correct order
         """Log all logging values to file.
@@ -136,12 +141,12 @@ class Logger:
         ), save_path)
         return save_path
 
-    def load_model(self, path_specification: Union[str, int], model: Models.ForwardHookedOutput, optimizer: Optional = None) -> \
+    def load_model(self, path_specification: Union[str, int], ret_model: Models.ForwardHookedOutput, optimizer: Optional = None) -> \
         Tuple[Models.ForwardHookedOutput, int, Optional[dict]]:
         """Load model from path.
 
         :param path_specification: Path to model file.
-        :param model: Model to be loaded into. Must have same underlying model architechture as input to save_model.
+        :param ret_model: Model to be loaded into. Must have same underlying model architechture as input to save_model.
         :param optimizer: Optimizer to apply the (possibly saved) state dict to.
         :return: Tuple of (Model, epoch_number, optimizer_state_dict (if saved, otherwise None))
         """
@@ -151,13 +156,13 @@ class Logger:
             save_path = path_specification
         checkpoint = torch.load(save_path)
 
-        model.load_state_dict(checkpoint['wrapped_model_dict'])
+        ret_model.load_state_dict(checkpoint['wrapped_model_dict'])
         epoch = checkpoint['epoch']
         if optimizer is not None:
             assert checkpoint['optimizer_state_dict'] is not None, f"Found no saved optimizer state dict to load in {save_path}"
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
-        return model, epoch, optimizer
+        return ret_model, epoch, optimizer
 
     def get_all_saved_model_paths(self) -> List[str]:
         """Return a tuple of paths to all saved models for this run."""
@@ -179,6 +184,7 @@ class Logger:
         return value
 
     def copy_config_to_dir(self):  # TODO(marius): Make copy to tmp at start, and copy to permanent when finished
+        """Copy the config file to the working directory and set the current dir to 'latest'"""
         shutil.copy(self.config_path, os.path.join(self.save_dirs.base, "config.yaml"), follow_symlinks=True)
         # Set latest run to this run
         self.force_symlink(
@@ -188,6 +194,7 @@ class Logger:
 
     @staticmethod
     def force_symlink(target, link_name):
+        """Create a symlink, throwing an error if not possible"""
         try:
             temp_link = link_name + ".tmp"
             # os.remove(temp_link)
