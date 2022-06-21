@@ -1,16 +1,11 @@
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-import dataclasses
-import enum
 import os
 import yaml
 
 from typing import Dict, Any, Iterator, List
-
-from Logger import SaveDirs
 
 def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]]) -> Iterator[str]:
     """Get all run directories in base_dir with configs matching required_params
@@ -58,10 +53,11 @@ def plot_runs(base_dir):
     relevant_measures = ['TraceMeasure']
 
     x_param = 'layer_name'
-    hue_param = 'class'
+    hue_param = 'trace'
 
     for run_dir in filter_configs(base_dir, run_config_params):
         for measure in relevant_measures:
+            # TODO(marius): Check if measurements file exists and warn+continue if not.
             measure_df = pd.read_csv(os.path.join(run_dir, 'measurements', measure + '.csv'))
             sns.lineplot(data=measure_df, x=x_param, y='value',
                          hue=hue_param)

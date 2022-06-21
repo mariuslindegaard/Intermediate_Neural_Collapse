@@ -11,7 +11,7 @@ Model:
     avgpool: 0.0
 
 Data:
-  dataset-id: cifar100   # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 512        # Mini-batch size
 
 Logging:

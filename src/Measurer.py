@@ -7,7 +7,7 @@ import tqdm
 import pandas as pd
 
 from collections import defaultdict
-from typing import Dict, Tuple, List, Any
+from typing import Dict, Tuple, List, Any, Hashable
 
 import utils
 
@@ -33,27 +33,49 @@ class TraceMeasure(Measurer):
         device = next(wrapped_model.parameters()).device
         data_loader = dataset.train_loader
 
-        class_sums: Dict[Dict[int, float]] = defaultdict(lambda: defaultdict(float))  # Dict of, for each layer a dict of class number to total norm.
-        class_num_data: Dict[int, int] = defaultdict(int)  # Dict of number of datapoints per class
+        class_trace_sums: Dict[Hashable, Dict[int, float]] = defaultdict(lambda: defaultdict(float))  # Dict of, for each layer a dict of class number to total norm.
+        class_num_samples = torch.zeros(dataset.num_classes)
+
+        class_means = shared_cache.get_test_class_means(wrapped_model, dataset)
+
+        total_trace = defaultdict(float)  # TODO(marius): Debug
 
         for inputs, targets in tqdm.tqdm(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
+            # print(torch.mean(torch.eq(preds, targets)))
             one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
 
             for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
-                class_num_data[class_idx] += len(class_batch_indexes)
+                class_num_samples[class_idx] += len(class_batch_indexes)
                 for layer_name, activations in embeddings.items():
                     # TODO(marius): Verify calculation (norm over sample, sum over batch)
-                    class_sums[layer_name][class_idx] += torch.sum(
-                        torch.linalg.norm(activations[class_batch_indexes])
+                    class_trace_sums[layer_name][class_idx] += torch.sum(
+                        torch.linalg.norm(activations[class_batch_indexes] - class_means[layer_name][class_idx]) ** 2
                     ).item()
+                    total_trace[layer_name] += (torch.linalg.norm(activations[class_batch_indexes] - torch.mean(class_means[layer_name], dim=0, keepdim=True))).detach().item()
+
+        global_mean = {}
+        for layer_name, layer_class_mean in class_means.items():
+            global_mean[layer_name] = (layer_class_mean.transpose(0, -1) @ class_num_samples.view(-1, 1)
+                                          / torch.sum(class_num_samples)).transpose(0, -1)
 
         out: List[Dict[str, Any]] = []  # Output to return. List of different value entries, one for each datapoint.
-        for layer_name, layer_dict in class_sums.items():
+        for layer_name, layer_dict in class_trace_sums.items():
+            within_class_trc = 0
+            between_class_trc = 0
             for class_idx in layer_dict.keys():
-                layer_class_average = class_sums[layer_name][class_idx] / class_num_data[class_idx]
-                out.append({'value': layer_class_average, 'layer_name': layer_name, 'class': class_idx})
+                layer_class_trace_mean = class_trace_sums[layer_name][class_idx] / class_num_samples[class_idx]
+                # out.append({'value': layer_class_average, 'layer_name': layer_name, 'class': class_idx})
+                within_class_trc += (layer_class_trace_mean / dataset.num_classes).item()
+                between_class_trc += (
+                        torch.linalg.norm(class_means[layer_name][class_idx] - global_mean[layer_name]) ** 2
+                        / dataset.num_classes
+                ).item()
+            out.append({'value': within_class_trc, 'layer_name': layer_name, 'trace': 'within'})
+            out.append({'value': between_class_trc, 'layer_name': layer_name, 'trace': 'between'})
+            out.append({'value': within_class_trc + between_class_trc, 'layer_name': layer_name, 'trace': 'sum'})
+            # print(within_class_trc + between_class_trc - total_trace[layer_name])
 
         return pd.DataFrame(out)
 
@@ -61,7 +83,7 @@ class TraceMeasure(Measurer):
 class SharedMeasurementVars:
     """Shared cache of often-used computations used for measurements.
 
-    E.g. class means. This allows them to be calculated once per epoch!
+    E.g. class means. This allows them to be calculated only once per epoch!
     """
     def __init__(self):
         self._cache = {}
@@ -116,10 +138,9 @@ class SharedMeasurementVars:
     @staticmethod
     def _calc_class_means_nums(wrapped_model: Models.ForwardHookedOutput, data_loader: torch.utils.data.DataLoader, num_classes: int, is_one_hot: bool) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
         device = next(iter(wrapped_model.parameters())).device
-        class_sums = {layer_name: None for layer_name in wrapped_model.output_layers}
+        class_trace_sums = {layer_name: None for layer_name in wrapped_model.output_layers}
         class_nums = torch.zeros((num_classes,))
 
-        i = 0  # TODO(marius): REMOVE DEBUG
         for inputs, targets in tqdm.tqdm(data_loader):
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
@@ -130,17 +151,13 @@ class SharedMeasurementVars:
                 batch_layer_class_means = (
                         one_hot_targets.t().float() @ embeddings[layer_name].detach().transpose(0, -2)
                 ).transpose(0, -2).detach()
-                if class_sums[layer_name] is None:
-                    class_sums[layer_name] = torch.zeros_like(batch_layer_class_means)
-                class_sums[layer_name] += batch_layer_class_means
-
-            i += 1
-            if i > 1:
-                break
+                if class_trace_sums[layer_name] is None:
+                    class_trace_sums[layer_name] = torch.zeros_like(batch_layer_class_means)
+                class_trace_sums[layer_name] += batch_layer_class_means
 
         class_means = {}
         for layer_name in wrapped_model.output_layers:
-            class_means[layer_name] = (class_sums[layer_name].transpose(0, -1) / class_nums).transpose(0, -1)
+            class_means[layer_name] = (class_trace_sums[layer_name].transpose(0, -1) / class_nums).transpose(0, -1)
 
         return class_means, class_nums
 
