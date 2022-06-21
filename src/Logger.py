@@ -2,15 +2,17 @@ import warnings
 import os
 import subprocess
 import shutil
-from typing import Dict, Union, Hashable
+from typing import Dict, Union, Hashable, Optional, Tuple, List
 import datetime
 import pandas as pd
+
+import Models
 
 import torch
 
 
 class SaveDirs:
-    def __init__(self, dirname: str):
+    def __init__(self, dirname: str, timestamp: Optional[str] = None):
         try:
             root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
         except OSError as e:  # TODO(marius): Make exception catching less general
@@ -18,10 +20,13 @@ class SaveDirs:
             root_dir = os.getcwd()
             warnings.warn(f"Using '{root_dir}' as root directory")
 
+        if timestamp is None:
+            timestamp = datetime.datetime.now().isoformat(timespec='minutes')
+
         self._base = os.path.join(
             root_dir,
             dirname,
-            datetime.datetime.now().isoformat(timespec='minutes')
+            timestamp
         )
         idx = 0
         while True:
@@ -54,6 +59,13 @@ class SaveDirs:
     @property
     def data(self) -> str:
         path = os.path.join(self.base, 'data')
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+
+    @property
+    def models(self):
+        path = os.path.join(self.base, 'models')
         if not os.path.exists(path):
             os.makedirs(path)
         return path
@@ -113,8 +125,55 @@ class Logger:
                 f.seek(0, 2)  # Seek to end of file
                 f.write(data)
 
+    def save_model(self, wrapped_model: Models.ForwardHookedOutput, epoch: int,
+                   optimizer_state_dict: Optional[Dict] = None) -> str:
+        """Save pytorch model with epoch number"""
+        save_path = os.path.join(self.save_dirs.models, f'{epoch}.tar')
+        torch.save(dict(
+            wrapped_model_dict=wrapped_model,
+            epoch=epoch,
+            optimizer_state_dict=optimizer_state_dict
+        ), save_path)
+        return save_path
+
+    def load_model(self, path_specification: Union[str, int], model: Models.ForwardHookedOutput, optimizer: Optional = None) -> \
+        Tuple[Models.ForwardHookedOutput, int, Optional[dict]]:
+        """Load model from path.
+
+        :param path_specification: Path to model file.
+        :param model: Model to be loaded into. Must have same underlying model architechture as input to save_model.
+        :param optimizer: Optimizer to apply the (possibly saved) state dict to.
+        :return: Tuple of (Model, epoch_number, optimizer_state_dict (if saved, otherwise None))
+        """
+        if type(path_specification) is int:
+            save_path = os.path.join(self.save_dirs.models, f'{path_specification}.tar')
+        else:
+            save_path = path_specification
+        checkpoint = torch.load(save_path)
+
+        model.load_state_dict(checkpoint['wrapped_model_dict'])
+        epoch = checkpoint['epoch']
+        if optimizer is not None:
+            assert checkpoint['optimizer_state_dict'] is not None, f"Found no saved optimizer state dict to load in {save_path}"
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        return model, epoch, optimizer
+
+    def get_all_saved_model_paths(self) -> List[str]:
+        """Return a tuple of paths to all saved models for this run."""
+        model_paths = []
+        for saved_path in os.listdir(self.save_dirs.models):
+            if saved_path == 'latest':
+                continue
+            model_paths.append(os.path.join(
+                self.save_dirs.models, saved_path
+            ))
+        return model_paths
+
+
     @staticmethod
     def _torch_tensor_to_float(value: Union[float, torch.Tensor]):
+        """Take a torch tensor to a float, and a float to a float."""
         if type(value) is torch.Tensor:
             return value.item()
         return value
