@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Dict
+from typing import Dict, Optional
 import tqdm
 import yaml
 from collections import OrderedDict
@@ -73,13 +73,15 @@ class Experiment:
             optimizer.step()
             # optimizer.zero_grad()
 
-            pbar_batch.set_description(f'Loss: {loss.item():0.4f}  LR: {optimizer.param_groups[0]["lr"]:0.6f}')
+            correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).item()
+
+            pbar_batch.set_description(f'Loss: {loss.item():0.4G}  LR: {optimizer.param_groups[0]["lr"]:0.2G} Acc: {correct/len(inputs):0.3G}')
 
     def train(self):
         # TODO(marius): Assertion check that configs are equal
         if self.logger.get_all_saved_model_paths():
             latest_checkpoint_path = self.logger.get_all_saved_model_paths()[-1]
-            _ret_model, start_epoch, _ret_optimizer = self.logger.load_model(
+            _, start_epoch, _ = self.logger.load_model(
                 latest_checkpoint_path, ret_model=self.wrapped_model, ret_optimizer=self.wrapped_optimizer
             )
             if start_epoch >= self.wrapped_optimizer.max_epochs:
@@ -108,10 +110,12 @@ class Experiment:
         model_path_list = self.logger.get_all_saved_model_paths()
         for model_checkpoint_path in tqdm.tqdm(model_path_list, position=pbar_pos_offset):
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
-            self.do_measurements()
+            self.do_measurements(epoch=epoch)
 
-    def do_measurements(self):
-        """Do the intended measurements on the model"""
+    def do_measurements(self, epoch: Optional[int] =None):
+        """Do the intended measurements on the model
+
+        :param epoch: Which epoch to assign to the measurements for this model (w/ parameters)"""
         measurement_dict = self.measures
         shared_cache = Measurer.SharedMeasurementVars()
 
@@ -121,6 +125,8 @@ class Experiment:
                 measurer, self.wrapped_model, self.dataset, shared_cache=shared_cache
             )
             assert 'value' in measurement_result_df.columns, "Measurement dataframe must contain 'value' field."
+            if epoch is not None:
+                measurement_result_df.insert(0, 'epoch', epoch)
             all_measurements[measurement_id] = measurement_result_df
 
         self.logger.write_to_measurements(all_measurements)
@@ -137,9 +143,10 @@ def _test_measurer():
 
 
 def _test_training():
-    config_path = "../config/debug.yaml"
+    config_path = "../config/default.yaml"
     exp = Experiment(config_path)
     exp.train()
+    print("Running measurements!")
     exp.do_measurements_on_checkpoints()
 
 

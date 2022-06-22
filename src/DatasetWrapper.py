@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn.functional
 from torchvision import datasets, transforms  # , models
@@ -25,7 +27,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num-workers', 0)
+        self.num_workers = data_cfg.get('num-workers', len(os.sched_getaffinity(0)))
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,

@@ -3,7 +3,6 @@ import torch.nn.functional as F
 import torch.utils.data
 import Models
 from DatasetWrapper import DatasetWrapper
-import tqdm
 import pandas as pd
 
 from collections import defaultdict
@@ -34,13 +33,13 @@ class TraceMeasure(Measurer):
         data_loader = dataset.train_loader
 
         class_trace_sums: Dict[Hashable, Dict[int, float]] = defaultdict(lambda: defaultdict(float))  # Dict of, for each layer a dict of class number to total norm.
-        class_num_samples = torch.zeros(dataset.num_classes)
+        class_num_samples = torch.zeros(dataset.num_classes, device=device)
 
         class_means = shared_cache.get_test_class_means(wrapped_model, dataset)
 
         total_trace = defaultdict(float)  # TODO(marius): Debug
 
-        for inputs, targets in tqdm.tqdm(data_loader):
+        for inputs, targets in data_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
             # print(torch.mean(torch.eq(preds, targets)))
@@ -139,9 +138,9 @@ class SharedMeasurementVars:
     def _calc_class_means_nums(wrapped_model: Models.ForwardHookedOutput, data_loader: torch.utils.data.DataLoader, num_classes: int, is_one_hot: bool) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
         device = next(iter(wrapped_model.parameters())).device
         class_trace_sums = {layer_name: None for layer_name in wrapped_model.output_layers}
-        class_nums = torch.zeros((num_classes,))
+        class_nums = torch.zeros((num_classes,)).to(device)
 
-        for inputs, targets in tqdm.tqdm(data_loader):
+        for inputs, targets in data_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
             one_hot_targets = F.one_hot(targets, num_classes=num_classes) if not is_one_hot else targets
