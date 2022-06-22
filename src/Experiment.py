@@ -33,7 +33,7 @@ class Experiment:
         measurements_cfg = self._config_params['Measurements']
 
         # Create logger
-        self.logger = Logger.Logger(logging_cfg, config_path)
+        self.logger = Logger.Logger(logging_cfg, config_path, use_existing=True)
         self.logger.copy_config_to_dir()
 
         # Instantiate model and dataset
@@ -58,7 +58,7 @@ class Experiment:
         loss_function = self.wrapped_optimizer.criterion
 
         # Iterate over batches to train a single epoch
-        pbar_batch = tqdm.tqdm(self.dataset.train_loader, position=1)
+        pbar_batch = tqdm.tqdm(self.dataset.train_loader, position=1, leave=False)
         for batch_index, (inputs, targets) in enumerate(pbar_batch):
             # Load data
             inputs, targets = inputs.to(device), targets.to(device)
@@ -73,21 +73,35 @@ class Experiment:
             optimizer.step()
             # optimizer.zero_grad()
 
-            pbar_batch.set_description(f'Loss: {loss.item():0.4f}\tLR: {optimizer.param_groups[0]["lr"]:0.6f}')
+            pbar_batch.set_description(f'Loss: {loss.item():0.4f}  LR: {optimizer.param_groups[0]["lr"]:0.6f}')
 
     def train(self):
-        # TODO(marius): Implement checkpointing start
+        # TODO(marius): Assertion check that configs are equal
+        if self.logger.get_all_saved_model_paths():
+            latest_checkpoint_path = self.logger.get_all_saved_model_paths()[-1]
+            _ret_model, start_epoch, _ret_optimizer = self.logger.load_model(
+                latest_checkpoint_path, ret_model=self.wrapped_model, ret_optimizer=self.wrapped_optimizer
+            )
+            if start_epoch >= self.wrapped_optimizer.max_epochs:
+                print("Model already trained, skipping training.")
+                return
+            print("Starting from ")
+        else:
+            start_epoch = 0
+
         # todo(marius): Implement tensorboard writer (if needed)
-        epoch = 0
-        pbar_epoch = tqdm.tqdm(range(epoch, self.wrapped_optimizer.max_epochs), position=0, leave=True)
+        pbar_epoch = tqdm.tqdm(range(start_epoch, self.wrapped_optimizer.max_epochs),
+                               initial=start_epoch, total=self.wrapped_optimizer.max_epochs, position=0)
         for epoch in pbar_epoch:
             # todo(marius): Implement warmup training (if wanting to copy cifar_100 repo exactly)
+            if epoch in self.logger.log_epochs:
+                self.logger.save_model(self.wrapped_model, epoch, wrapped_optimizer=self.wrapped_optimizer)
 
             self._train_single_epoch()
 
             self.wrapped_optimizer.lr_scheduler.step()
 
-            # TODO(marius): Implement saving checkpoints
+        self.logger.save_model(self.wrapped_model, self.wrapped_optimizer.max_epochs, wrapped_optimizer=self.wrapped_optimizer)
 
     def do_measurements_on_checkpoints(self, pbar_pos_offset=0):
         """Do measurements over all checkpoints saved"""
@@ -117,15 +131,16 @@ class Experiment:
 
 
 def _test_measurer():
-    config_path = "../config/default.yaml"
+    config_path = "../config/debug.yaml"
     exp = Experiment(config_path)
     exp.do_measurements()
 
 
 def _test_training():
-    config_path = "../config/default.yaml"
+    config_path = "../config/debug.yaml"
     exp = Experiment(config_path)
     exp.train()
+    exp.do_measurements_on_checkpoints()
 
 
 if __name__ == "__main__":

@@ -2,17 +2,19 @@ import warnings
 import os
 import subprocess
 import shutil
+import filecmp
 from typing import Dict, Union, Hashable, Optional, Tuple, List, Iterable
 import datetime
 import pandas as pd
 
 import Models
+import OptimizerWrapper
 
 import torch
 
 
 class SaveDirs:
-    def __init__(self, dirname: str, timestamp: Optional[str] = None):
+    def __init__(self, dirname: str, timestamp_subdir: bool = True, use_existing: bool = False):
         try:
             root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
         except (OSError, subprocess.CalledProcessError) as e:  # TODO(marius): Make exception catching less general
@@ -22,14 +24,16 @@ class SaveDirs:
             ))
             warnings.warn(f"Using '{root_dir}' as root directory")
 
-        if timestamp is None:
-            timestamp = datetime.datetime.now().isoformat(timespec='minutes')
+        if timestamp_subdir is None:
+            timestamp_subdir = datetime.datetime.now().isoformat(timespec='minutes')
 
         self._base = os.path.join(
             root_dir,
             dirname,
-            timestamp
         )
+        if timestamp_subdir:
+            self._base = os.path.join(self._base, timestamp_subdir)
+
         idx = 0
         while True:
             try:
@@ -38,6 +42,10 @@ class SaveDirs:
                 if e.errno != 17:
                     warnings.warn("Got other OSError than expected for file exists:")
                     warnings.warn(str(e))
+
+                if use_existing:
+                    break
+
                 if self._base.endswith(f'_{idx}'):
                     self._base = self._base[:-len(str(idx))]
                 else:
@@ -78,14 +86,14 @@ class Logger:
     config_path: str  # Path to config file
     log_epochs: Iterable[int]
 
-    def __init__(self, logging_cfg: Dict, config_path: str):
-        self.save_dirs = SaveDirs(logging_cfg['save-dir'])
+    def __init__(self, logging_cfg: Dict, config_path: str, timestamp_subdir=False, use_existing=False):
+        self.save_dirs = SaveDirs(logging_cfg['save-dir'], timestamp_subdir=timestamp_subdir, use_existing=use_existing)
         self.config_path = config_path
         self.logging_path = None
         if 'log-epochs' in logging_cfg.keys():
             self.log_epochs = logging_cfg['log-epochs']
         else:
-            self.log_epochs = range(1, 2000, logging_cfg['log-interval'])
+            self.log_epochs = list(range(0, 10)) + list(range(10, 2000, logging_cfg['log-interval']))
 
     def write_to_log(self, logs: Dict[Hashable, float]):  # TODO(marius): Add test to verify all data is in correct order
         """Log all logging values to file.
@@ -133,24 +141,28 @@ class Logger:
                 f.write(data)
 
     def save_model(self, wrapped_model: Models.ForwardHookedOutput, epoch: int,
-                   optimizer_state_dict: Optional[Dict] = None) -> str:
+                   wrapped_optimizer: OptimizerWrapper.OptimizerWrapper = None) -> str:
         """Save pytorch model with epoch number"""
-        save_path = os.path.join(self.save_dirs.models, f'{epoch}.tar')
+        save_path = os.path.join(self.save_dirs.models, f'{epoch:0>3}.tar')
         torch.save(dict(
-            wrapped_model_dict=wrapped_model,
+            wrapped_model_state_dict=wrapped_model.state_dict(),
             epoch=epoch,
-            optimizer_state_dict=optimizer_state_dict
+            wrapped_optimizer_state_dict=wrapped_optimizer.state_dict() if wrapped_optimizer is not None else None
         ), save_path)
         return save_path
 
-    def load_model(self, path_specification: Union[str, int], ret_model: Models.ForwardHookedOutput, optimizer: Optional = None) -> \
-        Tuple[Models.ForwardHookedOutput, int, Optional[dict]]:
+    def load_model(self, path_specification: Union[str, int], ret_model: Models.ForwardHookedOutput,
+                   ret_optimizer: Optional[OptimizerWrapper.OptimizerWrapper] = None) -> \
+            Tuple[Models.ForwardHookedOutput, int, Optional[OptimizerWrapper.OptimizerWrapper]]:
         """Load model from path.
+
+        NOTE: ret_model and ret_optimizer must have same architecture as the saved models.
+        Specifically: Use the wrappers.
 
         :param path_specification: Path to model file.
         :param ret_model: Model to be loaded into. Must have same underlying model architechture as input to save_model.
-        :param optimizer: Optimizer to apply the (possibly saved) state dict to.
-        :return: Tuple of (Model, epoch_number, optimizer_state_dict (if saved, otherwise None))
+        :param ret_optimizer: Optimizer to apply the (possibly saved) state dict to.
+        :return: Tuple of (Model_state_dict, epoch_number, optimizer_state_dict (if saved, otherwise None))
         """
         if type(path_specification) is int:
             save_path = os.path.join(self.save_dirs.models, f'{path_specification}.tar')
@@ -158,13 +170,13 @@ class Logger:
             save_path = path_specification
         checkpoint = torch.load(save_path)
 
-        ret_model.load_state_dict(checkpoint['wrapped_model_dict'])
+        ret_model.load_state_dict(checkpoint['wrapped_model_state_dict'])
         epoch = checkpoint['epoch']
-        if optimizer is not None:
-            assert checkpoint['optimizer_state_dict'] is not None, f"Found no saved optimizer state dict to load in {save_path}"
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if ret_optimizer is not None:
+            assert checkpoint['wrapped_optimizer_state_dict'] is not None, f"Found no saved optimizer state dict to load in {save_path}"
+            ret_optimizer.load_state_dict(checkpoint['wrapped_optimizer_state_dict'])
 
-        return ret_model, epoch, optimizer
+        return ret_model, epoch, ret_optimizer
 
     def get_all_saved_model_paths(self) -> List[str]:
         """Return a tuple of paths to all saved models for this run."""
@@ -185,9 +197,22 @@ class Logger:
             return value.item()
         return value
 
-    def copy_config_to_dir(self):  # TODO(marius): Make copy to tmp at start, and copy to permanent when finished
-        """Copy the config file to the working directory and set the current dir to 'latest'"""
-        shutil.copy(self.config_path, os.path.join(self.save_dirs.base, "config.yaml"), follow_symlinks=True)
+    def copy_config_to_dir(self, throw_if_existing_differs=True):
+        """Copy the config file to the working directory and set the current dir to 'latest'
+
+        :param throw_if_existing_differs: Whether to throw an error if the existing config file in that location differs
+        """
+        target_path = os.path.join(self.save_dirs.base, "config.yaml")
+        # If config exists and differs, throw or warn
+        if os.path.exists(target_path):
+            config_is_equal = filecmp.cmp(self.config_path, target_path)
+            if not config_is_equal:
+                if throw_if_existing_differs:
+                    raise FileExistsError(f"Config file at {target_path} exists and differs from input config at {self.config_path}!")
+                else:
+                    warnings.warn(f"Config file at {target_path} exists and differs from input config at {self.config_path}!")
+
+        shutil.copy(self.config_path, target_path, follow_symlinks=True)
         # Set latest run to this run
         self.force_symlink(
             os.path.split(self.save_dirs.base)[1],  # Use relative path

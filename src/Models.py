@@ -36,6 +36,7 @@ class ForwardHookedOutput(nn.Module):
         out = self.base_model(x)
         return out, self.hook_out
 
+
 def get_model(model_cfg: Dict):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model_name = model_cfg['model-name'].lower()
