@@ -4,6 +4,7 @@
 **/datasets
 # Logs from data runs
 logs/
+**/models/*.tar  # Model checkpoints
 
 # Vim swap
 [._]*.s[a-v][a-z]
