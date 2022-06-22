@@ -26,8 +26,8 @@ Optimizer:
 Logging:
   # When to store weights and calculate measurements
   save-dir: logs/default
-  log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
-  # log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 70, 100, 130, 160, 200, 250]  # Overrides log-interval
+  # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
+  log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 70, 100, 130, 160, 200, 250]  # Overrides log-interval
 
 Measurements:
   measures: [TraceMeasure]
