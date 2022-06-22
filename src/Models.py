@@ -16,20 +16,21 @@ class ForwardHookedOutput(nn.Module):
         self.output_layers = tuple(output_layers)
         self.fwd_hooks = []
         self.hook_out = OrderedDict()
+        self._module_to_layer_name = {}  # Mapping of modules to layername
 
         # TODO(marius): Allow accessing nested layers!!!
         # Register hooks
         for i, l in enumerate(list(self.base_model._modules.keys())):
             if l in self.output_layers:
+                layer = getattr(self.base_model, l)
+                self._module_to_layer_name[layer] = l
                 self.fwd_hooks.append(
-                    getattr(self.base_model, l).register_forward_hook(self.forward_hook(l))
+                    layer.register_forward_hook(self.hook)
                 )
 
-    def forward_hook(self, layer_id):
-        def hook(module, inputs, outputs):
-            self.hook_out[layer_id] = outputs
-
-        return hook
+    def hook(self, module, inputs, outputs):
+        layer_name = self._module_to_layer_name[module]
+        self.hook_out[layer_name] = outputs
 
     def forward(self, x):
         out = self.base_model(x)
