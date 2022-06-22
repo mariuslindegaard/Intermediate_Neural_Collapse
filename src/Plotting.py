@@ -53,14 +53,17 @@ def plot_runs(base_dir):
     relevant_measures = ['TraceMeasure']
 
     x_param = 'layer_name'
-    hue_param = 'trace'
+    hue_param = 'epoch'
+    style_param = 'trace'
+    # hue_param, style_param = style_param, hue_param
 
     for run_dir in filter_configs(base_dir, run_config_params):
         for measure in relevant_measures:
             # TODO(marius): Check if measurements file exists and warn+continue if not.
             measure_df = pd.read_csv(os.path.join(run_dir, 'measurements', measure + '.csv'))
             sns.lineplot(data=measure_df, x=x_param, y='value',
-                         hue=hue_param)
+                         hue=hue_param, style=style_param)
+            plt.yscale('log')
             plt.show()
             print(measure_df)
 
@@ -68,7 +71,7 @@ def plot_runs(base_dir):
 def _test():
     sns.set_theme(style='darkgrid')
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
-    plot_runs(root_dir+'/logs/default')
+    plot_runs(root_dir+'/logs')
 
 
 if __name__ == '__main__':
