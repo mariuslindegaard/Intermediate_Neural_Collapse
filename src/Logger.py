@@ -15,9 +15,11 @@ class SaveDirs:
     def __init__(self, dirname: str, timestamp: Optional[str] = None):
         try:
             root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
-        except OSError as e:  # TODO(marius): Make exception catching less general
+        except (OSError, subprocess.CalledProcessError) as e:  # TODO(marius): Make exception catching less general
             warnings.warn("Finding git root directory failed with the following error message:\n"+str(e))
-            root_dir = os.getcwd()
+            root_dir = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), os.pardir
+            ))
             warnings.warn(f"Using '{root_dir}' as root directory")
 
         if timestamp is None:
@@ -195,13 +197,14 @@ class Logger:
     @staticmethod
     def force_symlink(target, link_name):
         """Create a symlink, throwing an error if not possible"""
+        temp_link = link_name + ".tmp"
         try:
-            temp_link = link_name + ".tmp"
-            # os.remove(temp_link)
             os.symlink(target, temp_link)
             os.rename(temp_link, link_name)
         except OSError as e:
             warnings.warn("Failed to create symlink!")
+            if os.path.exists(temp_link):
+                os.remove(temp_link)
             raise e
 
 
