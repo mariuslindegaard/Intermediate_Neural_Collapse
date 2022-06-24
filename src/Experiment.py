@@ -73,7 +73,7 @@ class Experiment:
             optimizer.step()
             # optimizer.zero_grad()
 
-            correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).item()
+            correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).sum().item()
 
             pbar_batch.set_description(f'Loss: {loss.item():0.4G}  LR: {optimizer.param_groups[0]["lr"]:0.2G} Acc: {correct/len(inputs):0.3G}')
 
