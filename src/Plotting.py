@@ -7,6 +7,7 @@ import yaml
 
 from typing import Dict, Any, Iterator, List
 
+
 def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]]) -> Iterator[str]:
     """Get all run directories in base_dir with configs matching required_params
 
@@ -47,8 +48,8 @@ def plot_runs(base_dir):
     run_config_params = dict(
         Model={'model-name': 'resnet18'},
         Data={'dataset-id': 'cifar10'},
-        Logging={},
-        Measurements={},
+        # Logging={},
+        # Measurements={},
     )
     relevant_measures = ['TraceMeasure']
 
@@ -57,13 +58,22 @@ def plot_runs(base_dir):
     style_param = 'trace'
     # hue_param, style_param = style_param, hue_param
 
-    for run_dir in filter_configs(base_dir, run_config_params):
-        for measure in relevant_measures:
+    for measure in relevant_measures:
+        for run_dir in filter_configs(base_dir, run_config_params):
+            # TODO(marius): Merge dataframes and plot
+            fig = plt.figure(figsize=(8, 8))
             # TODO(marius): Check if measurements file exists and warn+continue if not.
             measure_df = pd.read_csv(os.path.join(run_dir, 'measurements', measure + '.csv'))
-            sns.lineplot(data=measure_df, x=x_param, y='value',
-                         hue=hue_param, style=style_param)
+
+            df = measure_df
+            selection = df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
+
+            sns.lineplot(data=measure_df[selection], x=x_param, y='value',
+                         hue=hue_param, style=style_param, style_order=['sum', 'between', 'within'])
             plt.yscale('log')
+            plt.title(f"{measure} over {x_param} for \n{run_config_params}")
+            plt.tight_layout()
+            plt.savefig("traces.pdf")
             plt.show()
             print(measure_df)
 
