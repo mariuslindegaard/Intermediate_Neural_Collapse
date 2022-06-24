@@ -34,20 +34,22 @@ class Experiment:
 
         # Create logger
         self.logger = Logger.Logger(logging_cfg, config_path, use_existing=True)
-        self.logger.copy_config_to_dir()
 
         # Instantiate model and dataset
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.wrapped_model = Models.get_model(model_cfg)  # TODO(Marius): Support other models
-        self.wrapped_model.base_model.to(device)
         self.dataset = DatasetWrapper(data_cfg)
+        self.wrapped_model = Models.get_model(model_cfg, self.dataset)
+        self.wrapped_model.base_model.to(device)
 
         # Instantiate optimizer
-        self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)  # TODO(marius): Make sure LR scheduler supports checkpointing
+        self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)
 
         # Get all relevant measures
         self.measures = {measurement_str: getattr(Measurer, measurement_str)
                          for measurement_str in measurements_cfg['measures']}
+
+        # Copy config to correct file. Do last so any initalization errors get thrown first.
+        self.logger.copy_config_to_dir()
 
     def _train_single_epoch(self):
         """Train the model on the specified dataset"""
@@ -143,7 +145,7 @@ def _test_measurer():
 
 
 def _test_training():
-    config_path = "../config/default.yaml"
+    config_path = "../config/mlp.yaml"
     exp = Experiment(config_path)
     exp.train()
     print("Running measurements!")

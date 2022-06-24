@@ -2,8 +2,10 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-from typing import Dict, Optional, Iterable, Hashable
+from typing import Dict, Optional, Iterable, Hashable, Tuple
 from collections import OrderedDict
+
+from DatasetWrapper import DatasetWrapper
 
 
 class ForwardHookedOutput(nn.Module):
@@ -37,19 +39,56 @@ class ForwardHookedOutput(nn.Module):
         return out, self.hook_out
 
 
-def get_model(model_cfg: Dict):
+class MLP(nn.Module):
+    def __init__(self, input_size: int, hidden_layers_widths: Iterable[int], output_size: int,
+                 use_bias: bool = True, use_softmax: bool = False):
+        super(MLP, self).__init__()
+
+
+        self.model = nn.Sequential(
+            nn.Flatten()
+        )
+        if len(hidden_layers_widths) == 0:
+            self.model.append(nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias))
+        else:
+            self.model.append(nn.Linear(in_features=input_size, out_features=hidden_layers_widths[0], bias=use_bias))
+            self.model.append(nn.ReLU())
+            for idx, (in_size, out_size) in enumerate(zip(hidden_layers_widths[:-1], hidden_layers_widths[1:])):
+                self.model.append(nn.Linear(in_features=in_size, out_features=out_size, bias=use_bias))
+                self.model.append(nn.ReLU())
+            self.model.append(nn.Linear(in_features=hidden_layers_widths[-1], out_features=output_size))
+
+        if use_softmax:
+            self.model.append(nn.Softmax())
+
+    def forward(self, x):
+        out = self.model(x)
+        return out
+
+
+def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model_name = model_cfg['model-name'].lower()
 
     if model_name == 'resnet18':
-        base_model = models.resnet18(pretrained=False)  # TODO(marius): Make more models available than resnet18
-        base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=10)  # TODO(marius): Make use num classes
+        base_model = models.resnet18(pretrained=False)
+        base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
+        base_model.to(device)
+    elif model_name == 'mlp':
+        hidden_layer_sizes = [128, 128, 64, 64]
+        base_model = MLP(
+            input_size=datasetwrapper.input_batch_shape[1:].numel(),
+            hidden_layers_widths=hidden_layer_sizes,
+            output_size=datasetwrapper.num_classes
+        )
         base_model.to(device)
     else:
-        assert model_cfg['model-name'] == 'resnet18', "Resnet18 is always used for now. TODO to implement other models."
+        assert model_cfg['model-name'].lower() in ('resnet18', 'mlp'),\
+            f"Model type not supported: {model_cfg['model-name']}"
         raise NotImplementedError
 
-    out_layers = model_cfg['embedding_layers']
+    out_layers = model_cfg['embedding_layers']  # TODO(marius): Make support "True" for all layers
+    print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
     return ret_model
 
