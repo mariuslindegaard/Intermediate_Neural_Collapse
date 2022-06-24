@@ -48,6 +48,7 @@ def plot_runs(base_dir):
     run_config_params = dict(
         Model={'model-name': 'resnet18'},
         Data={'dataset-id': 'cifar10'},
+        # Optimizer={},
         # Logging={},
         # Measurements={},
     )
@@ -75,7 +76,6 @@ def plot_runs(base_dir):
             plt.tight_layout()
             plt.savefig("traces.pdf")
             plt.show()
-            print(measure_df)
 
 
 def _test():
