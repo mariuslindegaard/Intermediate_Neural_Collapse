@@ -8,6 +8,7 @@ Model:
 Data:
   dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 512        # Mini-batch size
+  do-augmentation: False # Whether to do data augmentation
 
 Optimizer:
   loss: mseloss

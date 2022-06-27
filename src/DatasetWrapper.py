@@ -1,11 +1,12 @@
 import os
+import warnings
 
 import torch
 import torch.nn.functional
 from torchvision import datasets, transforms  # , models
 from torch.utils.data import DataLoader  # , Subset
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 # TODO(marius): Verify whether shuffling of data is needed
 
@@ -52,20 +53,7 @@ class DatasetWrapper:
 
     def cifar100(self, data_cfg: Optional[Dict] = None, download=True):
         """Cifar100 dataset"""
-
-        normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
-                                         std=[x/255.0 for x in [63.0, 62.1, 66.7]])
-        train_tx = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(15),
-            transforms.ToTensor(),
-            normalize
-        ])
-        test_tx = transforms.Compose([
-            transforms.ToTensor(),
-            normalize
-        ])
+        train_tx, test_tx = self._cifar_transforms(data_cfg)
 
         train_data = datasets.CIFAR100(root=self.data_download_dir, train=True, download=download,
                                        transform=train_tx)
@@ -79,20 +67,7 @@ class DatasetWrapper:
 
     def cifar10(self, data_cfg: Optional[Dict] = None, download=True):
         """Cifar10 dataset"""
-
-        normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
-                                         std=[x/255.0 for x in [63.0, 62.1, 66.7]])
-        train_tx = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomRotation(15),
-            transforms.ToTensor(),
-            normalize
-        ])
-        test_tx = transforms.Compose([
-            transforms.ToTensor(),
-            normalize
-        ])
+        train_tx, test_tx = self._cifar_transforms(data_cfg)
 
         train_data = datasets.CIFAR10(root=self.data_download_dir, train=True, download=download,
                                       transform=train_tx)
@@ -104,23 +79,56 @@ class DatasetWrapper:
 
         return train_data, test_data
 
+    @staticmethod
+    def _cifar_transforms(data_cfg: Optional[Dict] = None) -> Tuple[transforms.transforms.Compose, transforms.transforms.Compose]:
+        """Get the train and test transforms for cifar dataset"""
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
+        normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
+                                         std=[x/255.0 for x in [63.0, 62.1, 66.7]])
+
+        test_tx = transforms.Compose([
+            transforms.ToTensor(),
+            normalize
+        ])
+        if do_augmentation:
+            train_tx = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                test_tx
+            ])
+        else:
+            train_tx = test_tx
+
+        return train_tx, test_tx
+
     def imagenet(self, data_cfg: Optional[Dict] = None, download=True):
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
 
-        train_tx = transforms.Compose([
-            transforms.RandomCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])
         test_tx = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize
         ])
-        print(self.data_download_dir)
+        if do_augmentation:
+            train_tx = transforms.Compose([
+                transforms.RandomCrop(224),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ])
+        else:
+            train_tx = test_tx
+
         train_data = datasets.ImageNet(root=self.data_download_dir, train=True, download=download,
                                        transform=train_tx)
         test_data = datasets.ImageNet(root=self.data_download_dir, train=False, download=download,
@@ -130,10 +138,9 @@ class DatasetWrapper:
 
         return train_data, test_data
 
-
-
     def mnist(self, data_cfg: Optional[Dict] = None, download=True):
         """Mnist dataset"""
+        assert not data_cfg.get('do-augmentation', False), "Data augmentation specified for MNIST but is not supported."
 
         im_size = 28
         padded_im_size = 32
@@ -157,9 +164,6 @@ def load_dataset_from_dict(data_cfg: dict, *args, **kwargs) -> DatasetWrapper:
     """Load the dataset"""
     wrapper = DatasetWrapper(data_cfg, *args, **kwargs)
     return wrapper
-    # (im_size, _, im_channels) = wrapper.input_shape
-
-    # return wrapper.train_loader, im_channels, im_size, wrapper.num_classes
 
 
 def load_dataset(dataset_id: str, batch_size: int, *args, **kwargs) -> DatasetWrapper:
