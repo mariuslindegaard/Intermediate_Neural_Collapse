@@ -126,7 +126,7 @@ def plot_runs_rel_trace(base_dir):
                          hue=hue_param, style=style_param, style_order=['sum', 'between', 'within'])
 
             plt.tight_layout()
-            plt.savefig("traces.pdf")
+            plt.savefig(os.path.join(base_dir, 'plots', "traces.pdf"))
             plt.show()
 
 
