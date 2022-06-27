@@ -23,7 +23,40 @@ class Measurer:
         raise NotImplementedError("Measures should overwrite this method!")
 
 
+class AccuracyMeasure(Measurer):
+    """Measure test and train accuracy"""
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVars()
+        wrapped_model.eval()  # TODO(marius): Might throw error. If not: Change in TraceMeasure too
+        device = next(wrapped_model.parameters()).device
+
+        dataset_splits = {
+            'train': dataset.train_loader,
+            'test': dataset.test_loader,
+        }
+
+
+        out: List[Dict[str, Any]] = []  # Output to return. List of different value entries, one for each datapoint.
+        for split_id, data_loader in dataset_splits.items():
+            num_samples, correct = 0, 0
+            for inputs, targets in data_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                preds, embeddings = wrapped_model(inputs)
+                # one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+                class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+
+                correct += torch.argmax(preds, dim=-1).eq(class_idx_targets).sum().item()
+                num_samples += len(inputs)
+
+            accuracy = correct / num_samples
+            out.append({'value': accuracy, 'split': split_id})
+
+        return pd.DataFrame(out)
+
+
 class TraceMeasure(Measurer):
+    """Measure traces of activations in relevant layers"""
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
             shared_cache = SharedMeasurementVars()
@@ -36,8 +69,6 @@ class TraceMeasure(Measurer):
         class_num_samples = torch.zeros(dataset.num_classes, device=device)
 
         class_means = shared_cache.get_test_class_means(wrapped_model, dataset)
-
-        total_trace = defaultdict(float)  # TODO(marius): Debug
 
         for inputs, targets in data_loader:
             inputs, targets = inputs.to(device), targets.to(device)
@@ -52,7 +83,6 @@ class TraceMeasure(Measurer):
                     class_trace_sums[layer_name][class_idx] += torch.sum(
                         torch.linalg.norm(activations[class_batch_indexes] - class_means[layer_name][class_idx]) ** 2
                     ).item()
-                    total_trace[layer_name] += (torch.linalg.norm(activations[class_batch_indexes] - torch.mean(class_means[layer_name], dim=0, keepdim=True))).detach().item()
 
         global_mean = {}
         for layer_name, layer_class_mean in class_means.items():
@@ -74,7 +104,6 @@ class TraceMeasure(Measurer):
             out.append({'value': within_class_trc, 'layer_name': layer_name, 'trace': 'within'})
             out.append({'value': between_class_trc, 'layer_name': layer_name, 'trace': 'between'})
             out.append({'value': within_class_trc + between_class_trc, 'layer_name': layer_name, 'trace': 'sum'})
-            # print(within_class_trc + between_class_trc - total_trace[layer_name])
 
         return pd.DataFrame(out)
 
