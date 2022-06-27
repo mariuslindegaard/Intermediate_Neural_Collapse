@@ -228,6 +228,9 @@ class Logger:
             os.rename(temp_link, link_name)
         except OSError as e:
             warnings.warn("Failed to create symlink!")
+            if e.errno == 21:
+                warnings.warn(f"The 'latest'-directory is supposed to be a symlink, not a directory"
+                              f"\n\tDelete the 'latest' directory at {link_name} to fix error.")
             if os.path.exists(temp_link):
                 os.remove(temp_link)
             raise e
