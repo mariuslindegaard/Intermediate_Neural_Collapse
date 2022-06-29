@@ -10,28 +10,30 @@ import utils
 
 
 class ForwardHookedOutput(nn.Module):
-    def __init__(self, base_model: nn.Module, output_layers: Union[Tuple[Hashable], List[Hashable], bool], *args):
+    def __init__(self, base_model: nn.Module, output_layers_specification: Union[Tuple[Hashable], List[Hashable], bool], *args):
         # Init and store base model
         super().__init__(*args)
         self.base_model = base_model
 
         # Output hooks
-        self.output_layers = output_layers
+        self.output_layers = []
         self.fwd_hooks = []
         self.hook_out = OrderedDict()
         self._module_to_layer_name = {}  # Mapping of modules to layername
 
         # TODO(marius): Allow accessing nested layers!!!
         # Register hooks
-        for module_name, module in utils.filter_all_named_modules(self.base_model, self.output_layers, require_leaf=False):
+        for module_name, module in utils.filter_all_named_modules(self.base_model, output_layers_specification, require_leaf=False):
             self._module_to_layer_name[module] = module_name
             self.fwd_hooks.append(
                 module.register_forward_hook(self.hook)
             )
+            self.output_layers.append(module_name)
 
     def hook(self, module, inputs, outputs):
         layer_name = self._module_to_layer_name[module]
-        self.hook_out[layer_name] = inputs
+        assert type(inputs) is tuple and len(inputs) == 1, f"Expected input to be a tuple with length 1, got {inputs}."
+        self.hook_out[layer_name] = inputs[0]
 
     def forward(self, x):
         out = self.base_model(x)
