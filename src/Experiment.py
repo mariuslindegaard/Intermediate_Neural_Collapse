@@ -81,7 +81,7 @@ class Experiment:
 
     def train(self):
         if self.logger.get_all_saved_model_paths():
-            latest_checkpoint_path = self.logger.get_all_saved_model_paths()[-1]
+            latest_checkpoint_path = sorted(self.logger.get_all_saved_model_paths())[-1]
             _, start_epoch, _ = self.logger.load_model(
                 latest_checkpoint_path, ret_model=self.wrapped_model, ret_optimizer=self.wrapped_optimizer
             )
