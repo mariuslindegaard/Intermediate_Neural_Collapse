@@ -80,7 +80,6 @@ class Experiment:
             pbar_batch.set_description(f'Loss: {loss.item():0.4G}  LR: {optimizer.param_groups[0]["lr"]:0.2G} Acc: {correct/len(inputs):0.3G}')
 
     def train(self):
-        # TODO(marius): Assertion check that configs are equal
         if self.logger.get_all_saved_model_paths():
             latest_checkpoint_path = self.logger.get_all_saved_model_paths()[-1]
             _, start_epoch, _ = self.logger.load_model(
@@ -138,14 +137,9 @@ class Experiment:
         # pbar_batch.close()
 
 
-def _test_measurer():
+def _test():
+    # config_path = "../config/default.yaml"
     config_path = "../config/debug.yaml"
-    exp = Experiment(config_path)
-    exp.do_measurements()
-
-
-def _test_training():
-    config_path = "../config/mlp.yaml"
     exp = Experiment(config_path)
     exp.train()
     print("Running measurements!")
@@ -153,5 +147,4 @@ def _test_training():
 
 
 if __name__ == "__main__":
-    _test_training()
-    # _test_measurer()
+    _test()

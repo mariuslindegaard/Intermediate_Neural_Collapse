@@ -2,13 +2,15 @@
 # Neural collapse config file. All must be specified
 Model:
   model-name: resnet18       # Name of model in "our_models"
-  embedding_layers:          # Intermediate layers to use for NC loss with weightings
-    maxpool: 0.0
-    layer1: 0.0
-    layer2: 0.0
-    layer3: 0.0
-    layer4: 0.003
-    avgpool: 0.0
+  embedding_layers: True     # Intermediate layers to use for NC loss with weightings
+  _dummy: [
+    maxpool, 
+    layer1, 
+    layer2, 
+    layer3, 
+    layer4, 
+    avgpool,
+                      ]
 
 Data:
   dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset

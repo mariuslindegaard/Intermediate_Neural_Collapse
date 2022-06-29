@@ -2,33 +2,32 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 
-from typing import Dict, Optional, Iterable, Hashable, Tuple
+from typing import Dict, Optional, Iterable, Hashable, Tuple, Union, List
 from collections import OrderedDict
 
 from DatasetWrapper import DatasetWrapper
+import utils
 
 
 class ForwardHookedOutput(nn.Module):
-    def __init__(self, base_model: nn.Module, output_layers: Optional[Iterable[Hashable]], *args):
+    def __init__(self, base_model: nn.Module, output_layers: Union[Tuple[Hashable], List[Hashable], bool], *args):
         # Init and store base model
         super().__init__(*args)
         self.base_model = base_model
 
         # Output hooks
-        self.output_layers = tuple(output_layers)
+        self.output_layers = output_layers
         self.fwd_hooks = []
         self.hook_out = OrderedDict()
         self._module_to_layer_name = {}  # Mapping of modules to layername
 
         # TODO(marius): Allow accessing nested layers!!!
         # Register hooks
-        for i, l in enumerate(list(self.base_model._modules.keys())):
-            if l in self.output_layers:
-                layer = getattr(self.base_model, l)
-                self._module_to_layer_name[layer] = l
-                self.fwd_hooks.append(
-                    layer.register_forward_hook(self.hook)
-                )
+        for module_name, module in utils.filter_all_named_modules(self.base_model, self.output_layers, require_leaf=False):
+            self._module_to_layer_name[module] = module_name
+            self.fwd_hooks.append(
+                module.register_forward_hook(self.hook)
+            )
 
     def hook(self, module, inputs, outputs):
         layer_name = self._module_to_layer_name[module]
@@ -43,7 +42,6 @@ class MLP(nn.Module):
     def __init__(self, input_size: int, hidden_layers_widths: Iterable[int], output_size: int,
                  use_bias: bool = True, use_softmax: bool = False):
         super(MLP, self).__init__()
-
 
         self.model = nn.Sequential(
             nn.Flatten()
@@ -92,6 +90,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
     return ret_model
 
+
 def get_resnet18_model(model_cfg: Dict):
     # TODO(marius): Add support for mnist single channel input data
     # base_model.fc = nn.Linear(in_features=512, out_features=10, bias=True)
@@ -100,8 +99,8 @@ def get_resnet18_model(model_cfg: Dict):
     # out_layers = {f'layer{i}': 1 for i in range(3, 5)}
     # out_layers = model_cfg['embedding_layers']
     # ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
+    # return ret_model
     raise NotImplementedError()
-    return ret_model
 
 
 if __name__ == "__main__":
