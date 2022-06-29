@@ -31,7 +31,7 @@ class ForwardHookedOutput(nn.Module):
 
     def hook(self, module, inputs, outputs):
         layer_name = self._module_to_layer_name[module]
-        self.hook_out[layer_name] = outputs
+        self.hook_out[layer_name] = inputs
 
     def forward(self, x):
         out = self.base_model(x)
