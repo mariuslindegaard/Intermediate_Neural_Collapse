@@ -1,0 +1,29 @@
+---
+# Neural collapse config file. All must be specified
+Model:
+  model-name: mlp            # Name of model in "our_models"
+  embedding_layers: True     # Intermediate layers to use for NC loss with weightings
+
+Data:
+  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
+  batch-size: 128        # Mini-batch size
+  do-augmentation: False # Whether to do data augmentation
+
+Optimizer:
+  loss: mseloss
+  weight-decay: 5.e-4    # Weight decay
+  lr: 0.067              # Learning rate
+  lr-decay: 0.2
+  lr-decay-steps: 3      # Number of learning rate decay steps
+  momentum: 0.9          # Optimizer momentum
+  epochs: 200            # Number of epochs to train for
+
+Logging:
+  # When to store weights and calculate measurements
+  save-dir: logs/base_run/cifar10_mlp
+  # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
+  log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 70, 100, 130, 160, 200, 250]  # Overrides log-interval
+
+Measurements:
+  measures: [TraceMeasure, AccuracyMeasure]
+...
