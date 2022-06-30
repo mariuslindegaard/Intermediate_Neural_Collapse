@@ -177,7 +177,7 @@ class SharedMeasurementVars:
             class_nums += torch.sum(one_hot_targets, dim=0)
             for layer_name, activations in embeddings.items():
                 batch_layer_class_means = (
-                        one_hot_targets.t().float() @ embeddings[layer_name].detach().transpose(0, -2)
+                        one_hot_targets.t().float() @ activations.detach().transpose(0, -2)
                 ).transpose(0, -2).detach()
                 if class_trace_sums[layer_name] is None:
                     class_trace_sums[layer_name] = torch.zeros_like(batch_layer_class_means)
@@ -189,7 +189,8 @@ class SharedMeasurementVars:
 
         return class_means, class_nums
 
-    def _get_train_class_nums(self, dataset: DatasetWrapper) -> torch.Tensor:
+    @staticmethod
+    def _get_train_class_nums(dataset: DatasetWrapper) -> torch.Tensor:
         """Get the number of class samples for each class in the training dataset.
 
         :return: A tensor [#class_0, #class_1, ...]"""
@@ -200,7 +201,8 @@ class SharedMeasurementVars:
 
         return class_nums
 
-    def _get_test_class_nums(self, dataset: DatasetWrapper) -> torch.Tensor:
+    @staticmethod
+    def _get_test_class_nums(dataset: DatasetWrapper) -> torch.Tensor:
         """Get the number of class samples for each class in the testing dataset.
 
         :return: A tensor [#class_0, #class_1, ...]"""
