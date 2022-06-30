@@ -72,6 +72,17 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
 
     if model_name == 'resnet18':
         base_model = models.resnet18(pretrained=False)
+        # Set input channels to match input channels of dataset
+        data_input_channels = datasetwrapper.input_batch_shape[1]
+        if base_model.conv1.in_channels != data_input_channels:
+            # base_model.conv1 = nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+            old_layer = base_model.conv1
+            base_model.conv1 = nn.Conv2d(
+                in_channels=data_input_channels,
+                out_channels=old_layer.out_channels, kernel_size=old_layer.kernel_size,
+                stride=old_layer.stride, padding=old_layer.padding, bias=old_layer.bias
+            )
+
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
         base_model.to(device)
     elif model_name == 'mlp':
