@@ -25,5 +25,5 @@ Logging:
   log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 70, 100, 130, 160, 200, 250]  # Overrides log-interval
 
 Measurements:
-  measures: [TraceMeasure, AccuracyMeasure]
+  measures: [CDNVMeasure, TraceMeasure, AccuracyMeasure]
 ...

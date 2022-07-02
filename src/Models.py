@@ -86,7 +86,8 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
         base_model.to(device)
     elif model_name == 'mlp':
-        hidden_layer_sizes = [128, 128, 64, 64]
+        # hidden_layer_sizes = [128, 128, 64, 64]
+        hidden_layer_sizes = [512] * 5
         base_model = MLP(
             input_size=datasetwrapper.input_batch_shape[1:].numel(),
             hidden_layers_widths=hidden_layer_sizes,
