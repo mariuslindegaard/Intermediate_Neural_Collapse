@@ -45,21 +45,25 @@ class MLP(nn.Module):
                  use_bias: bool = True, use_softmax: bool = False):
         super(MLP, self).__init__()
 
-        self.model = nn.Sequential(
-            nn.Flatten()
-        )
+        layers = OrderedDict()
+
+        layers['flatten'] = nn.Flatten()
+
         if len(hidden_layers_widths) == 0:
-            self.model.append(nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias))
+            layers['fc0'] = nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias)
         else:
-            self.model.append(nn.Linear(in_features=input_size, out_features=hidden_layers_widths[0], bias=use_bias))
-            self.model.append(nn.ReLU())
+            layers['fc0'] = nn.Linear(in_features=input_size, out_features=hidden_layers_widths[0], bias=use_bias)
+            layers['relu0'] = nn.ReLU()
             for idx, (in_size, out_size) in enumerate(zip(hidden_layers_widths[:-1], hidden_layers_widths[1:])):
-                self.model.append(nn.Linear(in_features=in_size, out_features=out_size, bias=use_bias))
-                self.model.append(nn.ReLU())
-            self.model.append(nn.Linear(in_features=hidden_layers_widths[-1], out_features=output_size))
+                layers[f'fc{idx+1}'] = nn.Linear(in_features=in_size, out_features=out_size, bias=use_bias)
+                layers[f'relu{idx+1}'] = nn.ReLU()
+            layers[f'fc{len(hidden_layers_widths)}'] = nn.Linear(in_features=hidden_layers_widths[-1], out_features=output_size)
 
         if use_softmax:
-            self.model.append(nn.Softmax())
+            layers['softmax'] = nn.Softmax()
+        self.model = nn.Sequential(
+            layers
+        )
 
     def forward(self, x):
         out = self.model(x)
@@ -84,7 +88,6 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             )
 
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
-        base_model.to(device)
     elif model_name == 'mlp':
         # hidden_layer_sizes = [128, 128, 64, 64]
         hidden_layer_sizes = [512] * 5
@@ -93,12 +96,19 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             hidden_layers_widths=hidden_layer_sizes,
             output_size=datasetwrapper.num_classes
         )
-        base_model.to(device)
+    elif model_name == 'mlp_large':
+        hidden_layer_sizes = [1024] * 10
+        base_model = MLP(
+            input_size=datasetwrapper.input_batch_shape[1:].numel(),
+            hidden_layers_widths=hidden_layer_sizes,
+            output_size=datasetwrapper.num_classes
+        )
     else:
         assert model_cfg['model-name'].lower() in ('resnet18', 'mlp'),\
             f"Model type not supported: {model_cfg['model-name']}"
         raise NotImplementedError
 
+    base_model.to(device)
     out_layers = model_cfg['embedding_layers']  # TODO(marius): Make support "True" for all layers
     print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
