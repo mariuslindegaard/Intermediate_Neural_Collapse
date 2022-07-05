@@ -2,7 +2,14 @@
 # Neural collapse config file. All must be specified
 Model:
   model-name: resnet18       # Name of model in "our_models"
-  embedding_layers: True     # Intermediate layers to use for NC loss with weightings
+  embedding_layers: [         # Intermediate layers to use for NC loss with weightings
+    conv1, bn1, relu, maxpool,
+    layer1.0, layer1.1,
+    layer2.0, layer2.1,
+    layer3.0, layer3.1,
+    layer4.0, layer4.1,
+    avgpool, fc
+    ]
 
 Data:
   dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
@@ -11,7 +18,7 @@ Data:
 
 Optimizer:
   loss: mseloss
-  weight-decay: 5.e-4    # Weight decay
+  weight-decay: 2.e-3    # Weight decay
   lr: 0.067              # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps
