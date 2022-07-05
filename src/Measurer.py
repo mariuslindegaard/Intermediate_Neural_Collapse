@@ -299,7 +299,6 @@ class SharedMeasurementVars:
         class_trace_sums = {layer_name: None for layer_name in wrapped_model.output_layers}
         class_nums = torch.zeros((num_classes,)).to(device)
 
-        i = 0
         for inputs, targets in data_loader:
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
@@ -313,9 +312,6 @@ class SharedMeasurementVars:
                 if class_trace_sums[layer_name] is None:
                     class_trace_sums[layer_name] = torch.zeros_like(batch_layer_class_means)
                 class_trace_sums[layer_name] += batch_layer_class_means
-            i += 1
-            if i > 4:
-                break
 
         class_means = {}
         for layer_name in wrapped_model.output_layers:
