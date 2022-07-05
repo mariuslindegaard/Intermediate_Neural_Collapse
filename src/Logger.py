@@ -15,6 +15,13 @@ import torch
 
 class SaveDirs:
     def __init__(self, dirname: str, timestamp_subdir: bool = True, use_existing: bool = False):
+        """Initialize, find root directory and create base directory.
+
+        :param dirname: Save-directory path (from project (i.e. git) root directory)
+        :param timestamp_subdir: Use subfolder in the save-directory path with timestamp of the run.
+        :param use_existing:
+        """
+        # Find root directory
         try:
             root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
         except (OSError, subprocess.CalledProcessError) as e:  # TODO(marius): Make exception catching less general
@@ -24,16 +31,20 @@ class SaveDirs:
             ))
             warnings.warn(f"Using '{root_dir}' as root directory")
 
-        if timestamp_subdir is None:
-            timestamp_subdir = datetime.datetime.now().isoformat(timespec='minutes')
-
+        # Set base directory
         self._base = os.path.join(
             root_dir,
             dirname,
         )
+
+        # Define subdirectory and append to base
         if timestamp_subdir:
+            if timestamp_subdir is True:
+                timestamp_subdir = datetime.datetime.now().isoformat(timespec='minutes')
             self._base = os.path.join(self._base, timestamp_subdir)
 
+
+        # Make sure directory does not already exist, and if it does handle it. (Behavior based on use_existing)
         idx = 0
         while True:
             try:
@@ -76,6 +87,13 @@ class SaveDirs:
     @property
     def models(self):
         path = os.path.join(self.base, 'models')
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+
+    @property
+    def plots(self):
+        path = os.path.join(self.base, 'plots')
         if not os.path.exists(path):
             os.makedirs(path)
         return path
