@@ -45,7 +45,7 @@ class Experiment:
         self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)
 
         # Get all relevant measures
-        self.measures = {measurement_str: getattr(Measurer, measurement_str)
+        self.measures = {measurement_str: getattr(Measurer, measurement_str)()
                          for measurement_str in measurements_cfg['measures']}
 
         # Copy config to correct file. Do last so any initalization errors get thrown first.
@@ -123,7 +123,7 @@ class Experiment:
         all_measurements = OrderedDict()
         for measurement_id, measurer in measurement_dict.items():
             measurement_result_df: pd.DataFrame = measurer.measure(
-                measurer, self.wrapped_model, self.dataset, shared_cache=shared_cache
+                self.wrapped_model, self.dataset, shared_cache=shared_cache
             )
             assert 'value' in measurement_result_df.columns, "Measurement dataframe must contain 'value' field."
             if epoch is not None:
