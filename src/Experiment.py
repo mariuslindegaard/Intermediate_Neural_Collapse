@@ -111,17 +111,21 @@ class Experiment:
         model_path_list = self.logger.get_all_saved_model_paths()
         for model_checkpoint_path in tqdm.tqdm(model_path_list, position=pbar_pos_offset):
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
-            self.do_measurements(epoch=epoch)
+            self.do_measurements(epoch=epoch, pbar_pos_offset=pbar_pos_offset+1)
 
-    def do_measurements(self, epoch: Optional[int] =None):
+    def do_measurements(self, epoch: Optional[int] = None, pbar_pos_offset: Optional[int] = None):
         """Do the intended measurements on the model
 
-        :param epoch: Which epoch to assign to the measurements for this model (w/ parameters)"""
+        :param epoch: Which epoch to assign to the measurements for this model (w/ parameters)
+        :param pbar_pos_offset: Offset for progress bar
+        """
         measurement_dict = self.measures
         shared_cache = Measurer.SharedMeasurementVars()
 
         all_measurements = OrderedDict()
-        for measurement_id, measurer in measurement_dict.items():
+        pbar_measurements = tqdm.tqdm(measurement_dict.items(), position=pbar_pos_offset)
+        for measurement_id, measurer in pbar_measurements:
+            pbar_measurements.set_description(measurement_id)
             measurement_result_df: pd.DataFrame = measurer.measure(
                 self.wrapped_model, self.dataset, shared_cache=shared_cache
             )
