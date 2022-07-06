@@ -21,7 +21,6 @@ class ForwardHookedOutput(nn.Module):
         self.hook_out = OrderedDict()
         self._module_to_layer_name = {}  # Mapping of modules to layername
 
-        # TODO(marius): Allow accessing nested layers!!!
         # Register hooks
         for module_name, module in utils.filter_all_named_modules(self.base_model, output_layers_specification, require_leaf=False):
             self._module_to_layer_name[module] = module_name
@@ -41,7 +40,7 @@ class ForwardHookedOutput(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size: int, hidden_layers_widths: Iterable[int], output_size: int,
+    def __init__(self, input_size: int, hidden_layers_widths: List[int], output_size: int,
                  use_bias: bool = True, use_softmax: bool = False):
         super(MLP, self).__init__()
 
@@ -112,6 +111,8 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     out_layers = model_cfg['embedding_layers']  # TODO(marius): Make support "True" for all layers
     print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
+    print("Tracking layers: ", end='\n\t')
+    print(*ret_model.output_layers, sep=',\n\t')
     return ret_model
 
 

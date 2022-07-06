@@ -34,6 +34,6 @@ def filter_all_named_modules(model: torch.nn.Module, layer_names: Union[Iterable
 
         if yield_all:
             yield name, module
-        elif sum(map(lambda key: name.endswith(str(key)), layer_names)):
+        elif sum(map(lambda key: ("^" + name).endswith(str(key)), layer_names)):
             yield name, module
 

@@ -2,7 +2,7 @@
 # Neural collapse config file. All must be specified
 Model:
   model-name: resnet18       # Name of model in "our_models"
-  embedding_layers: True     # Intermediate layers to use for NC loss with weightings
+  embedding_layers: True     # Intermediate layers to use for NC loss with weightings. "^" used to indicate start of network.
 
 Data:
   dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
