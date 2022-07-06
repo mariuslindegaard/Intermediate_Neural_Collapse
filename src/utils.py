@@ -1,6 +1,6 @@
 import torch
 
-from typing import Iterator, Tuple, Union, Iterable, Hashable
+from typing import Iterator, Tuple, Union, Iterable, Hashable, List
 
 
 def class_idx_iterator(one_hot_targets: torch.Tensor) -> Iterator[torch.Tensor]:
@@ -36,4 +36,26 @@ def filter_all_named_modules(model: torch.nn.Module, layer_names: Union[Iterable
             yield name, module
         elif sum(map(lambda key: ("^" + name).endswith(str(key)), layer_names)):
             yield name, module
+
+
+def slice_to_smaller_batch(*args: Tuple[torch.Tensor, ...], batch_size: int = 1) -> Iterator[Tuple[torch.Tensor, ...]]:
+    """Yields the input arguments sliced into in smaller batches.
+
+    Typically meant to be used in:
+    for sliced_inputs, sliced_targets in slice_to_smaller_batch(batch_inputs, batch_targets, batch_size=16):
+        ...
+
+
+    :param args: Tensors to slice
+    :param batch_size: Maximal batch size to use.
+    :return: Iterator over the sliced input tensors.
+    """
+    total_samples = len(args[0])
+
+    for first_sample_idx in range(0, len(args[0]), batch_size):
+        ret = tuple(
+            batch_tensor[first_sample_idx:min(first_sample_idx+batch_size, total_samples)]
+            for batch_tensor in args
+        )
+        yield ret
 

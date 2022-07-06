@@ -6,6 +6,7 @@ from DatasetWrapper import DatasetWrapper
 import pandas as pd
 import numpy as np
 import scipy.sparse.linalg
+import tqdm
 
 from collections import defaultdict, OrderedDict
 from typing import Dict, Tuple, List, Any, Hashable
@@ -163,7 +164,15 @@ class CDNVMeasure(Measurer):
 
 class NC1Measure(Measurer):
     """Measure NC metrics"""
-    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+    MAX_BATCH_SIZE = 64  # <- Maximum batch size to use when doing memory-heavy calculations.
+    IGNORE_RESNET_LAYER_IDS = ['conv1', 'bn1', 'relu', 'maxpool']  # TODO(marius): Make less hardcoded
+
+    def __init__(self):
+        super(NC1Measure, self).__init__()
+        self.layer_slice_size = defaultdict(lambda: NC1Measure.MAX_BATCH_SIZE)
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None,
+                pbar_offset: int = 2) -> pd.DataFrame:
         if shared_cache is None:
             shared_cache = SharedMeasurementVars()
 
@@ -178,61 +187,94 @@ class NC1Measure(Measurer):
 
         # M = torch.stack(mean).T  # Mean of classes before layer
 
-        for inputs, targets in dataset.train_loader:
-            inputs, targets = inputs.to(device), targets.to(device)
+        layer_pbar = tqdm.tqdm(wrapped_model.output_layers, position=pbar_offset, leave=False)
+        for layer_name in layer_pbar:
+            layer_pbar.set_description(f"  NC1: {layer_name:16}")
+            # Ignore the largest layers of resnet18
+            if layer_name in self.IGNORE_RESNET_LAYER_IDS:  # TODO(marius): Make only catch resnet
+                continue
 
-            embeddings: Dict[str, torch.Tensor]
-            preds, embeddings = wrapped_model(inputs)
-            one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
-            # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+            batch_pbar = tqdm.tqdm(dataset.train_loader, position=pbar_offset+1, leave=False)
+            for full_inputs, full_targets in batch_pbar:
+                use_cpu_for_batch = False
+                layer_pbar.set_description(f"     Batches; Slices: {self.layer_slice_size[layer_name]}")
+                # Iterate only over slices of the batch, not the full batch
+                for inputs, targets in utils.slice_to_smaller_batch(full_inputs, full_targets, batch_size=self.layer_slice_size[layer_name]):
+                    inputs, targets = inputs.to(device), targets.to(device)
 
-            for layer_name, activations in embeddings.items():
-                flat_activations = torch.flatten(activations, start_dim=1)
-                if layer_name not in cov_within.keys():
-                    activation_size = flat_activations.size()[-1]
-                    cov_within[layer_name] = torch.zeros((activation_size, activation_size), device='cpu')
+                    embeddings: Dict[str, torch.Tensor]
+                    preds, embeddings = wrapped_model(inputs)
+                    one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+                    # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
 
-                for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
-                    if not len(class_batch_indexes):  # Continue if no images classified to this class
-                        continue
-                    class_activations = flat_activations[class_batch_indexes, :].detach()
+                    flat_activations = torch.flatten(embeddings[layer_name], start_dim=1)
+                    if layer_name not in cov_within.keys():
+                        activation_size = flat_activations.size()[-1]
+                        cov_within[layer_name] = torch.zeros((activation_size, activation_size), device='cpu')
 
-                    # update within-class cov
-                    rel_class_activations = class_activations - class_means[layer_name][class_idx].reshape(1, -1)
-                    cov = torch.matmul(rel_class_activations.unsqueeze(-1),  # B CHW 1
-                                       rel_class_activations.unsqueeze(1))  # B 1 CHW
-                    cov_within[layer_name] += torch.sum(cov, dim=0).detach().to('cpu')
+                    for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                        if not len(class_batch_indexes):  # Continue if no images classified to this class
+                            continue
+                        class_activations = flat_activations[class_batch_indexes, :].detach()
 
-                    # during calculation of within-class covariance, calculate:
-                    # 1) network's accuracy
-                    # net_pred = torch.argmax(outputs[idxs, :], dim=1).cpu()
-                    # true_class = torch.argmax(labels[idxs, :], dim=1).cpu()
-                    # net_correct += sum(net_pred == true_class).item()
+                        # update within-class cov
+                        rel_class_activations = (class_activations - class_means[layer_name][class_idx].reshape(1, -1))
+                        if use_cpu_for_batch:
+                            rel_class_activations = rel_class_activations.detach().to('cpu')
+                        # Catch out-of-memory errors, reduce batch size for this layer and continue with CPU for this slice.
+                        try:
+                            cov = torch.matmul(rel_class_activations.unsqueeze(-1),  # B CHW 1
+                                               rel_class_activations.unsqueeze(1))  # B 1 CHW
+                        except RuntimeError as e:
+                            if not "CUDA out of memory" in str(e):
+                                raise e
+                            # warnings.warn("CUDA out of memory")
+                            # Use CPU for the rest of this batch, and reduce the "safe" batch size
+                            use_cpu_for_batch = True
+                            old_bs = self.layer_slice_size[layer_name]
+                            self.layer_slice_size[layer_name] = old_bs // 2
+                            batch_pbar.set_description(f"     Batches; Slices: {old_bs}(cpu) -> {old_bs // 2}")
 
-                    # 2) agreement between prediction and nearest class center
-                    # NCC_scores = torch.stack([torch.norm(h_c[i, :] - M.T, dim=1) \
-                    #                           for i in range(h_c.shape[0])])
-                    # NCC_pred = torch.argmin(NCC_scores, dim=1).cpu()
-                    # NCC_match_net += sum(NCC_pred == net_pred).item()
-                    print(f"Class: {class_idx}")
+                            rel_class_activations = rel_class_activations.detach().to('cpu')
+                            cov = torch.matmul(rel_class_activations.unsqueeze(-1),  # B CHW 1
+                                               rel_class_activations.unsqueeze(1))  # B 1 CHW
+
+                        cov_within[layer_name] += torch.sum(cov, dim=0).detach().to('cpu')
+
+
+
+                        # during calculation of within-class covariance, calculate:
+                        # 1) network's accuracy
+                        # net_pred = torch.argmax(outputs[idxs, :], dim=1).cpu()
+                        # true_class = torch.argmax(labels[idxs, :], dim=1).cpu()
+                        # net_correct += sum(net_pred == true_class).item()
+
+                        # 2) agreement between prediction and nearest class center
+                        # NCC_scores = torch.stack([torch.norm(h_c[i, :] - M.T, dim=1) \
+                        #                           for i in range(h_c.shape[0])])
+                        # NCC_pred = torch.argmin(NCC_scores, dim=1).cpu()
+                        # NCC_match_net += sum(NCC_pred == net_pred).item()
+                        # print(f"Class: {class_idx}")
 
         # Make cov_within an average instead of a sum
         for layer_name, cov_within_sum in cov_within.items():
-            cov_within[layer_name] = cov_within_sum / torch.sum(class_num_samples)
+            cov_within[layer_name] = cov_within_sum / torch.sum(class_num_samples).to('cpu')
 
         # Calculate NC1-condition and add to output
         out: List[Dict[str, Any]] = []
-        for layer_name in global_mean.keys():
-            rel_class_means = class_means[layer_name] - global_mean[layer_name]
-            layer_cov_within = cov_within[layer_name]
+        for layer_name in tqdm.tqdm(cov_within.keys(), desc='Calculating NC1', position=pbar_offset):
+            rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            layer_cov_within = cov_within[layer_name].to('cpu')
 
-            layer_cov_between = torch.matmul(rel_class_means, rel_class_means.T) / dataset.num_classes  # TODO(marius): Verify calculation
+            layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
             S_within = layer_cov_within.cpu().numpy()
             S_between = layer_cov_between.cpu().numpy()
             eigvecs, eigvals, _ = scipy.sparse.linalg.svds(S_between, k=dataset.num_classes-1)
             inv_S_between = eigvecs @ np.diag(eigvals ** (-1)) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
             nc1_value = np.trace(S_within @ inv_S_between)  # \Sigma_w @ \Sigma_b^-1
             out.append({'value': nc1_value, 'layer_name': layer_name})
+
+        return pd.DataFrame(out)
 
 
 class SharedMeasurementVars:
