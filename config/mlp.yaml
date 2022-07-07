@@ -2,7 +2,9 @@
 # Neural collapse config file. All must be specified
 Model:
   model-name: mlp_large      # Name of model in "our_models"
-  embedding_layers: True     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
+  embedding_layers: [
+    fc, relu
+  ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
   dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
@@ -11,7 +13,7 @@ Data:
 
 Optimizer:
   loss: mseloss
-  weight-decay: 2.e-3    # Weight decay
+  weight-decay: 2.e-4    # Weight decay
   lr: 0.067              # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps

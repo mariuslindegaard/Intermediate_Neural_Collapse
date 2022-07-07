@@ -41,7 +41,7 @@ class ForwardHookedOutput(nn.Module):
 
 class MLP(nn.Module):
     def __init__(self, input_size: int, hidden_layers_widths: List[int], output_size: int,
-                 use_bias: bool = True, use_softmax: bool = False):
+                 use_bias: bool = True, use_softmax: bool = False, use_batch_norm: bool = True):
         super(MLP, self).__init__()
 
         layers = OrderedDict()
@@ -49,17 +49,18 @@ class MLP(nn.Module):
         layers['flatten'] = nn.Flatten()
 
         if len(hidden_layers_widths) == 0:
-            layers['fc0'] = nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias)
+            layers['fc'] = nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias)
         else:
-            layers['fc0'] = nn.Linear(in_features=input_size, out_features=hidden_layers_widths[0], bias=use_bias)
-            layers['relu0'] = nn.ReLU()
+            layers['0'] = _MLPBlock(input_dim=input_size, output_dim=hidden_layers_widths[0],
+                                    use_bias=use_bias, use_batch_norm=use_batch_norm)
             for idx, (in_size, out_size) in enumerate(zip(hidden_layers_widths[:-1], hidden_layers_widths[1:])):
-                layers[f'fc{idx+1}'] = nn.Linear(in_features=in_size, out_features=out_size, bias=use_bias)
-                layers[f'relu{idx+1}'] = nn.ReLU()
-            layers[f'fc{len(hidden_layers_widths)}'] = nn.Linear(in_features=hidden_layers_widths[-1], out_features=output_size)
+                layers[f'{idx+1}'] = _MLPBlock(input_dim=in_size, output_dim=out_size,
+                                               use_bias=use_bias, use_batch_norm=use_batch_norm)
+            layers['fc'] = nn.Linear(in_features=hidden_layers_widths[-1], out_features=output_size, bias=use_bias)
 
         if use_softmax:
             layers['softmax'] = nn.Softmax()
+
         self.model = nn.Sequential(
             layers
         )
@@ -69,9 +70,26 @@ class MLP(nn.Module):
         return out
 
 
+class _MLPBlock(nn.Module):
+    def __init__(self, input_dim: int, output_dim: int, use_bias: bool = None, use_batch_norm: bool = False):
+        super(_MLPBlock, self).__init__()
+        self.fc = nn.Linear(in_features=input_dim, out_features=output_dim, bias=use_bias)
+        self.use_batch_norm = use_batch_norm
+        if self.use_batch_norm:
+            self.bn = nn.BatchNorm1d(num_features=output_dim)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.fc(x)
+        if self.use_batch_norm:
+            x = self.bn(x)
+        x = self.relu(x)
+        return x
+
+
 def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model_name = model_cfg['model-name'].lower()
+    model_name: str = model_cfg['model-name'].lower()
 
     if model_name == 'resnet18':
         base_model = models.resnet18(pretrained=False)
@@ -87,23 +105,17 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             )
 
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
-    elif model_name == 'mlp':
+    elif model_name.startswith('mlp'):
         # hidden_layer_sizes = [128, 128, 64, 64]
-        hidden_layer_sizes = [512] * 5
+        hidden_layer_sizes = [512] * 5 if '_large' not in model_name else [1024] * 10
         base_model = MLP(
             input_size=datasetwrapper.input_batch_shape[1:].numel(),
             hidden_layers_widths=hidden_layer_sizes,
-            output_size=datasetwrapper.num_classes
-        )
-    elif model_name == 'mlp_large':
-        hidden_layer_sizes = [1024] * 10
-        base_model = MLP(
-            input_size=datasetwrapper.input_batch_shape[1:].numel(),
-            hidden_layers_widths=hidden_layer_sizes,
-            output_size=datasetwrapper.num_classes
+            output_size=datasetwrapper.num_classes,
+            use_batch_norm='_nobn' not in model_name
         )
     else:
-        assert model_cfg['model-name'].lower() in ('resnet18', 'mlp'),\
+        assert model_cfg['model-name'].lower() in ('resnet18', 'mlp', 'mlp_bn', 'mlp_large', 'mlp_large_bn'),\
             f"Model type not supported: {model_cfg['model-name']}"
         raise NotImplementedError
 
