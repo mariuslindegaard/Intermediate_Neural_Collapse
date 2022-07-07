@@ -18,7 +18,7 @@ Data:
 
 Optimizer:
   loss: mseloss
-  weight-decay: 2.e-3    # Weight decay
+  weight-decay: 5.e-4    # Weight decay
   lr: 0.067              # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps
