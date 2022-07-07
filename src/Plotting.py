@@ -10,11 +10,12 @@ from Logger import SaveDirs
 from typing import Dict, Any, Iterator, List
 
 
-def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]]) -> Iterator[str]:
+def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]], recurse: bool = False) -> Iterator[str]:
     """Get all run directories in base_dir with configs matching required_params
 
     :param base_dir: Directory in which the runs are placed (contains timestamped dirs)
     :param required_params: Filter based on requiring these parameters to match the run config
+    :param recurse: Recurse downwards through filepaths. Default False
     :return: An iterator over paths to directories matching this required config.
     """
     dirs = sorted(map(lambda d: d.path, filter(lambda d: d.is_dir(), os.scandir(base_dir))))
@@ -23,8 +24,14 @@ def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]]) ->
         if run_dirname.endswith('latest') or os.path.split(run_dirname)[-1][0] == '.':
             continue
         cfg_path = os.path.join(base_dir, run_dirname, 'config.yaml')
-        with open(cfg_path, 'r') as config_file:
-            config_params = yaml.safe_load(config_file)
+        try:
+            with open(cfg_path, 'r') as config_file:
+                config_params = yaml.safe_load(config_file)
+        except FileNotFoundError as e:  # If there is not immediate config file, either recurse or
+            if recurse:
+                for dir in filter_configs(base_dir=os.path.join(base_dir, run_dirname), required_params=required_params, recurse=recurse):
+                    yield dir
+            continue
 
         # Assuming all config files are two layers deep (max)
         # Check if required_params is a subset of config_params
@@ -117,7 +124,7 @@ def plot_runs_rel_trace(base_dir):
 
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
             # selection = measure_df['epoch'].isin([0, 40, 160, 200])
-            selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model')
+            selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model') # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'fc']))
 
             # Plot absolute traces
             sns.lineplot(data=measure_df[selection], y='value', **plot_config)
@@ -126,6 +133,7 @@ def plot_runs_rel_trace(base_dir):
 
             # Plot relative trace
             if measure == "TraceMeasure":
+                plt.legend(loc='center left')
                 plt.sca(axes[1])
                 df = measure_df
                 total_trace_sel = df['trace'] == 'sum'
@@ -139,6 +147,7 @@ def plot_runs_rel_trace(base_dir):
                 sns.lineplot(data=df[selection][df[selection]['trace'] != 'sum'], y='value', **plot_config)
                 # sns.lineplot(data=df[selection][df[selection]['trace'] == 'between'], y='value', **plot_config)
                 plt.yscale('log')
+                plt.legend(loc='center left')
 
             plt.xticks(rotation=90)
 
@@ -152,8 +161,9 @@ def plot_runs_rel_trace(base_dir):
 def _test():
     sns.set_theme(style='darkgrid')
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
-    # plot_runs(root_dir+'/logs/base_run')
-    plot_runs_rel_trace(root_dir+'/logs/base_run')
+    log_dir = 'logs/'
+    plot_runs(os.path.join(root_dir, log_dir))
+    plot_runs_rel_trace(os.path.join(root_dir, log_dir))
 
 
 if __name__ == '__main__':
