@@ -199,7 +199,7 @@ class Logger:
     def get_all_saved_model_paths(self) -> List[str]:
         """Return a tuple of paths to all saved models for this run."""
         model_paths = []
-        for saved_path in os.listdir(self.save_dirs.models):
+        for saved_path in sorted(os.listdir(self.save_dirs.models)):
             if saved_path == 'latest':
                 continue
             model_paths.append(os.path.join(
