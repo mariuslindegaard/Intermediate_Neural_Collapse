@@ -165,7 +165,8 @@ class CDNVMeasure(Measurer):
 class NC1Measure(Measurer):
     """Measure NC metrics"""
     MAX_BATCH_SIZE = 64  # <- Maximum batch size to use when doing memory-heavy calculations.
-    IGNORE_RESNET_LAYER_IDS = ['conv1', 'bn1', 'relu', 'maxpool']  # TODO(marius): Make less hardcoded
+    IGNORE_LAYER_IDS = ['', 'model', 'model.flatten', 'conv1', 'bn1', 'relu', 'maxpool']  # TODO(marius): Make less hardcoded
+    NUM_LAYERS = -6  # Number of layers to use. 0 for all, -x for the last x, +x for the first x.
 
     def __init__(self):
         super(NC1Measure, self).__init__()
@@ -186,12 +187,15 @@ class NC1Measure(Measurer):
         # NCC_match_net = 0
 
         # M = torch.stack(mean).T  # Mean of classes before layer
-
-        layer_pbar = tqdm.tqdm(wrapped_model.output_layers, position=pbar_offset, leave=False)
+        # Go through layers. check only the last one if
+        layers = wrapped_model.output_layers
+        if self.NUM_LAYERS != 0:
+            layers = layers[:self.NUM_LAYERS] if self.NUM_LAYERS > 0 else layers[self.NUM_LAYERS:]
+        layer_pbar = tqdm.tqdm(layers, leave=False)
         for layer_name in layer_pbar:
             layer_pbar.set_description(f"  NC1: {layer_name:16}")
             # Ignore the largest layers of resnet18
-            if layer_name in self.IGNORE_RESNET_LAYER_IDS:  # TODO(marius): Make only catch resnet
+            if layer_name in self.IGNORE_LAYER_IDS:  # TODO(marius): Make only catch relevant net, not all
                 continue
 
             batch_pbar = tqdm.tqdm(dataset.train_loader, position=pbar_offset+1, leave=False)
@@ -262,14 +266,14 @@ class NC1Measure(Measurer):
 
         # Calculate NC1-condition and add to output
         out: List[Dict[str, Any]] = []
-        for layer_name in tqdm.tqdm(cov_within.keys(), desc='Calculating NC1', position=pbar_offset):
+        for layer_name in tqdm.tqdm(cov_within.keys(), desc='  NC1, calc. metric', leave=False):
             rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_cov_within = cov_within[layer_name].to('cpu')
 
             layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
             S_within = layer_cov_within.cpu().numpy()
             S_between = layer_cov_between.cpu().numpy()
-            eigvecs, eigvals, _ = scipy.sparse.linalg.svds(S_between, k=dataset.num_classes-1)
+            eigvecs, eigvals, _ = scipy.linalg.svd(S_between)
             inv_S_between = eigvecs @ np.diag(eigvals ** (-1)) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
             nc1_value = np.trace(S_within @ inv_S_between)  # \Sigma_w @ \Sigma_b^-1
             out.append({'value': nc1_value, 'layer_name': layer_name})
