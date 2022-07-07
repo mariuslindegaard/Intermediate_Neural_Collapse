@@ -60,7 +60,7 @@ class Experiment:
         loss_function = self.wrapped_optimizer.criterion
 
         # Iterate over batches to train a single epoch
-        pbar_batch = tqdm.tqdm(self.dataset.train_loader, position=1, leave=False)
+        pbar_batch = tqdm.tqdm(self.dataset.train_loader, leave=False)
         for batch_index, (inputs, targets) in enumerate(pbar_batch):
             # Load data
             inputs, targets = inputs.to(device), targets.to(device)
@@ -94,7 +94,7 @@ class Experiment:
 
         # todo(marius): Implement tensorboard writer (if needed)
         pbar_epoch = tqdm.tqdm(range(start_epoch, self.wrapped_optimizer.max_epochs),
-                               initial=start_epoch, total=self.wrapped_optimizer.max_epochs, position=0)
+                               initial=start_epoch, total=self.wrapped_optimizer.max_epochs)
         for epoch in pbar_epoch:
             # todo(marius): Implement warmup training (if wanting to copy cifar_100 repo exactly)
             if epoch in self.logger.log_epochs:
@@ -106,24 +106,23 @@ class Experiment:
 
         self.logger.save_model(self.wrapped_model, self.wrapped_optimizer.max_epochs, wrapped_optimizer=self.wrapped_optimizer)
 
-    def do_measurements_on_checkpoints(self, pbar_pos_offset=0):
+    def do_measurements_on_checkpoints(self):
         """Do measurements over all checkpoints saved"""
         model_path_list = self.logger.get_all_saved_model_paths()
-        for model_checkpoint_path in tqdm.tqdm(model_path_list, position=pbar_pos_offset):
+        for model_checkpoint_path in tqdm.tqdm(model_path_list):
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
-            self.do_measurements(epoch=epoch, pbar_pos_offset=pbar_pos_offset+1)
+            self.do_measurements(epoch=epoch)
 
-    def do_measurements(self, epoch: Optional[int] = None, pbar_pos_offset: Optional[int] = None):
+    def do_measurements(self, epoch: Optional[int] = None):
         """Do the intended measurements on the model
 
         :param epoch: Which epoch to assign to the measurements for this model (w/ parameters)
-        :param pbar_pos_offset: Offset for progress bar
         """
         measurement_dict = self.measures
         shared_cache = Measurer.SharedMeasurementVars()
 
         all_measurements = OrderedDict()
-        pbar_measurements = tqdm.tqdm(measurement_dict.items(), position=pbar_pos_offset)
+        pbar_measurements = tqdm.tqdm(measurement_dict.items(), leave=None)
         for measurement_id, measurer in pbar_measurements:
             pbar_measurements.set_description(measurement_id)
             measurement_result_df: pd.DataFrame = measurer.measure(
@@ -135,10 +134,6 @@ class Experiment:
             all_measurements[measurement_id] = measurement_result_df
 
         self.logger.write_to_measurements(all_measurements)
-
-        # pbar_batch = tqdm.tqdm(self.dataset.train_loader, position=1+pbar_pos_offset, leave=False, ncols=None)
-        # pbar_batch.set_description(f'')
-        # pbar_batch.close()
 
 
 def _test():

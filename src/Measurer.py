@@ -39,11 +39,10 @@ class AccuracyMeasure(Measurer):
             'test': dataset.test_loader,
         }
 
-
         out: List[Dict[str, Any]] = []  # Output to return. List of different value entries, one for each datapoint.
-        for split_id, data_loader in dataset_splits.items():
+        for split_id, data_loader in tqdm.tqdm(dataset_splits.items(), leave=False):
             num_samples, correct = 0, 0
-            for inputs, targets in data_loader:
+            for inputs, targets in tqdm.tqdm(data_loader, leave=False):
                 inputs, targets = inputs.to(device), targets.to(device)
                 preds, embeddings = wrapped_model(inputs)
                 # one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
@@ -74,7 +73,7 @@ class TraceMeasure(Measurer):
         class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
         global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
 
-        for inputs, targets in data_loader:
+        for inputs, targets in tqdm.tqdm(data_loader, leave=False):
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
             one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
@@ -123,7 +122,7 @@ class CDNVMeasure(Measurer):
 
         # M = torch.stack(mean).T  # Mean of classes before layer
 
-        for inputs, targets in dataset.train_loader:
+        for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False):
             inputs, targets = inputs.to(device), targets.to(device)
 
             embeddings: Dict[str, torch.Tensor]
@@ -172,8 +171,7 @@ class NC1Measure(Measurer):
         super(NC1Measure, self).__init__()
         self.layer_slice_size = defaultdict(lambda: NC1Measure.MAX_BATCH_SIZE)
 
-    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None,
-                pbar_offset: int = 2) -> pd.DataFrame:
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
             shared_cache = SharedMeasurementVars()
 
@@ -193,15 +191,15 @@ class NC1Measure(Measurer):
             layers = layers[:self.NUM_LAYERS] if self.NUM_LAYERS > 0 else layers[self.NUM_LAYERS:]
         layer_pbar = tqdm.tqdm(layers, leave=False)
         for layer_name in layer_pbar:
-            layer_pbar.set_description(f"  NC1: {layer_name:16}")
+            layer_pbar.set_description(f"  NC1, covariances: {layer_name:16}")
             # Ignore the largest layers of resnet18
             if layer_name in self.IGNORE_LAYER_IDS:  # TODO(marius): Make only catch relevant net, not all
                 continue
 
-            batch_pbar = tqdm.tqdm(dataset.train_loader, position=pbar_offset+1, leave=False)
+            batch_pbar = tqdm.tqdm(dataset.train_loader, leave=False)
             for full_inputs, full_targets in batch_pbar:
                 use_cpu_for_batch = False
-                layer_pbar.set_description(f"     Batches; Slices: {self.layer_slice_size[layer_name]}")
+                batch_pbar.set_description(f"     Batches; Slices: {self.layer_slice_size[layer_name]}")
                 # Iterate only over slices of the batch, not the full batch
                 for inputs, targets in utils.slice_to_smaller_batch(full_inputs, full_targets, batch_size=self.layer_slice_size[layer_name]):
                     inputs, targets = inputs.to(device), targets.to(device)
