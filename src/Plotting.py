@@ -29,8 +29,8 @@ def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]], re
                 config_params = yaml.safe_load(config_file)
         except FileNotFoundError as e:  # If there is not immediate config file, either recurse or
             if recurse:
-                for dir in filter_configs(base_dir=os.path.join(base_dir, run_dirname), required_params=required_params, recurse=recurse):
-                    yield dir
+                for child_dir in filter_configs(base_dir=os.path.join(base_dir, run_dirname), required_params=required_params, recurse=recurse):
+                    yield child_dir
             continue
 
         # Assuming all config files are two layers deep (max)
@@ -64,13 +64,11 @@ def plot_runs(base_dir):
         # Logging={},
         # Measurements={},
     )
-    relevant_measures = ['AccuracyMeasure']
+    relevant_measures = {
+        'AccuracyMeasure': dict(x='epoch', hue='split', style=None)
+    }
 
-    x_param = 'epoch'
-    hue_param = 'split'
-    style_param = None
-
-    for measure in relevant_measures:
+    for measure, plot_config in relevant_measures.items():
         print(f"Plotting {measure}:")
         for run_dir in filter_configs(base_dir, run_config_params):
             print(f"\t{run_dir}", end=', ')
@@ -83,10 +81,9 @@ def plot_runs(base_dir):
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
             selection = measure_df['epoch'] != -1
 
-            sns.lineplot(data=measure_df[selection], x=x_param, y='value',
-                         hue=hue_param, style=style_param)
+            sns.lineplot(data=measure_df[selection], y='value', **plot_config)
             # plt.yscale('log')
-            plt.title(f"{measure} over {x_param} for \n{os.path.split(savedir.base)[-1]}")
+            plt.title(f"{measure} over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
             plt.tight_layout()
             savepath = os.path.join(savedir.plots, measure + '.pdf')
             print(f"saving to {savepath}")
@@ -99,7 +96,7 @@ def plot_runs_rel_trace(base_dir):
     """The base plotting function to copy and modify."""
 
     run_config_params = dict(
-        # Model={'model-name': 'resnet18'},
+        Model={'model-name': 'mlp_large'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
         # Logging={},
@@ -107,7 +104,9 @@ def plot_runs_rel_trace(base_dir):
     )
     relevant_measures = {
         'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
-        'CDNVMeasure': dict(x='layer_name', hue='epoch')}
+        'CDNVMeasure': dict(x='layer_name', hue='epoch'),
+        'NC1Measure': dict(x='layer_name', hue='epoch'),
+    }
 
     for measure, plot_config in relevant_measures.items():
         print(f"Plotting {measure}:")
@@ -124,7 +123,7 @@ def plot_runs_rel_trace(base_dir):
 
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
             # selection = measure_df['epoch'].isin([0, 40, 160, 200])
-            selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model') # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'fc']))
+            selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model')  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
 
             # Plot absolute traces
             sns.lineplot(data=measure_df[selection], y='value', **plot_config)
@@ -158,12 +157,17 @@ def plot_runs_rel_trace(base_dir):
             plt.show()
 
 
-def _test():
+def main(logs_parent_dir: str):
+    """Run some of the standard plotting on the measurements. Prone to failure!!!"""
     sns.set_theme(style='darkgrid')
+    plot_runs(logs_parent_dir)
+    plot_runs_rel_trace(logs_parent_dir)
+
+
+def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
     log_dir = 'logs/'
-    plot_runs(os.path.join(root_dir, log_dir))
-    plot_runs_rel_trace(os.path.join(root_dir, log_dir))
+    main(os.path.join(root_dir, log_dir))
 
 
 if __name__ == '__main__':
