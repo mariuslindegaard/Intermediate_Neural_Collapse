@@ -51,10 +51,10 @@ class MLP(nn.Module):
         if len(hidden_layers_widths) == 0:
             layers['fc'] = nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias)
         else:
-            layers['0'] = _MLPBlock(input_dim=input_size, output_dim=hidden_layers_widths[0],
+            layers['block0'] = _MLPBlock(input_dim=input_size, output_dim=hidden_layers_widths[0],
                                     use_bias=use_bias, use_batch_norm=use_batch_norm)
             for idx, (in_size, out_size) in enumerate(zip(hidden_layers_widths[:-1], hidden_layers_widths[1:])):
-                layers[f'{idx+1}'] = _MLPBlock(input_dim=in_size, output_dim=out_size,
+                layers[f'block{idx+1}'] = _MLPBlock(input_dim=in_size, output_dim=out_size,
                                                use_bias=use_bias, use_batch_norm=use_batch_norm)
             layers['fc'] = nn.Linear(in_features=hidden_layers_widths[-1], out_features=output_size, bias=use_bias)
 
