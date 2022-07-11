@@ -1,6 +1,7 @@
 import torch
 
 from typing import Iterator, Tuple, Union, Iterable, Hashable, List
+import functools
 
 
 def class_idx_iterator(one_hot_targets: torch.Tensor) -> Iterator[torch.Tensor]:
@@ -58,4 +59,12 @@ def slice_to_smaller_batch(*args: Tuple[torch.Tensor, ...], batch_size: int = 1)
             for batch_tensor in args
         )
         yield ret
+
+
+# From: https://stackoverflow.com/questions/31174295/getattr-and-setattr-on-nested-objects/31174427?noredirect=1#comment86638618_31174427
+def rgetattr(obj, attr, *args):
+    """Implementation of recursive getattr for nested objects"""
+    def _getattr(obj, attr):
+        return getattr(obj, attr, *args)
+    return functools.reduce(_getattr, [obj] + attr.split('.'))
 

@@ -10,6 +10,7 @@ import tqdm
 
 from collections import defaultdict, OrderedDict
 from typing import Dict, Tuple, List, Any, Union
+import warnings
 
 import utils
 
@@ -40,9 +41,9 @@ class AccuracyMeasure(Measurer):
         }
 
         out: List[Dict[str, Any]] = []  # Output to return. List of different value entries, one for each datapoint.
-        for split_id, data_loader in tqdm.tqdm(dataset_splits.items(), leave=False):
+        for split_id, data_loader in tqdm.tqdm(dataset_splits.items(), leave=False, desc='  Splits: '):
             num_samples, correct = 0, 0
-            for inputs, targets in tqdm.tqdm(data_loader, leave=False):
+            for inputs, targets in tqdm.tqdm(data_loader, leave=False, desc=f'    {split_id} batches: '):
                 inputs, targets = inputs.to(device), targets.to(device)
                 preds, embeddings = wrapped_model(inputs)
                 # one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
@@ -73,7 +74,7 @@ class TraceMeasure(Measurer):
         class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
         global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
 
-        for inputs, targets in tqdm.tqdm(data_loader, leave=False):
+        for inputs, targets in tqdm.tqdm(data_loader, leave=False, desc='  '):
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
             one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
@@ -122,7 +123,7 @@ class CDNVMeasure(Measurer):
 
         # M = torch.stack(mean).T  # Mean of classes before layer
 
-        for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False):
+        for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  '):
             inputs, targets = inputs.to(device), targets.to(device)
 
             embeddings: Dict[str, torch.Tensor]
@@ -131,7 +132,6 @@ class CDNVMeasure(Measurer):
             # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
 
             for layer_name, activations in embeddings.items():
-                # flat_activations = torch.flatten(activations, start_dim=1)
                 if layer_name not in total_activation_var.keys():
                     total_activation_var[layer_name] = torch.zeros(dataset.num_classes)
 
@@ -174,7 +174,12 @@ class NC1Measure(Measurer):
         class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
         global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
 
-        cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+        # Get the class-wise covariances and sum them together to get total within-class covariance
+        class_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+        cov_within = {
+            layer_name: (layer_class_cov_within * class_num_samples.unsqueeze(-1).unsqueeze(-1).to('cpu')) / torch.sum(class_num_samples).to('cpu')
+            for layer_name, layer_class_cov_within in class_cov_within.items()
+        }
 
         # Calculate NC1-condition and add to output
         out: List[Dict[str, Any]] = []
@@ -192,6 +197,57 @@ class NC1Measure(Measurer):
 
         return pd.DataFrame(out)
 
+class MLPSVDMeasure(Measurer):
+    """Measure MLP SVD metrics"""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVars()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+        # Calculate NC1-condition and add to output
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(classwise_cov_within.keys(), desc='  SVD, calc. metric', leave=False):
+            if not layer_name.endswith('fc'):
+                continue
+
+            # Get class means and covariance
+            rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes
+
+            # Get the model weights
+            fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
+            try:
+                weights = fc_layer.weight.detach().to('cpu')
+            except AttributeError as e:
+                warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                continue
+
+            U_w, S_w, V_w = scipy.linalg.svd(weights)
+
+            num_from_weights = 100
+            num_from_class = 10
+            for class_idx, class_cov_within in enumerate(layer_classwise_cov_within):
+                U_c, S_c, _ = scipy.linalg.svd(class_cov_within)
+                V_w_sliced = V_w[:num_from_weights]
+                U_c_sliced = U_c[:num_from_class]
+                # import pdb; pdb.set_trace()
+                corr = V_w_sliced @ U_c_sliced.T
+                for (w_idx, c_idx), w_c_corr in np.ndenumerate(corr):
+                    out.append({'value': w_c_corr, 'layer_name': layer_name,
+                                'l_type': -1, 'l_ord': w_idx,
+                                'r_type': class_idx, 'r_ord': c_idx,
+                                })
+
+        return pd.DataFrame(out)
+
 
 class SharedMeasurementVars:
     """Shared cache of often-used computations used for measurements.
@@ -200,7 +256,7 @@ class SharedMeasurementVars:
     """
     COV_MAX_BATCH_SIZE = 64  # <- Maximum batch size to use when doing memory-heavy calculations.
     COV_IGNORE_LAYER_IDS = ['', 'model', 'model.flatten', 'conv1', 'bn1', 'relu', 'maxpool']  # TODO(marius): Make less hardcoded
-    COV_NUM_LAYERS = -6  # Number of layers to use. 0 for all, -x for the last x, +x for the first x.
+    COV_NUM_LAYERS = 0  # Number of layers to use. 0 for all, -x for the last x, +x for the first x.
 
     def __init__(self):
         self._cache: Dict[callable, Union[Tuple[Dict[str, torch.Tensor], torch.Tensor], Dict[str, torch.Tensor]]] = {}
@@ -257,13 +313,29 @@ class SharedMeasurementVars:
                                        / torch.sum(class_num_samples)).transpose(0, -1)
         return global_mean
 
+    def get_train_class_covariance(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper) -> Dict[str, torch.Tensor]:
+        """Get the activation covariances within each class
+
+        :return: Dict of layer_id to torch tensor of size (num_classes, embedding_width, embedding_width).
+       """
+        func_id = self.get_train_class_covariance
+        if func_id in self._cache.keys():
+            assert (wrapped_model, dataset) == self._cache_args[func_id], "Got different arguments when calling cache, is this intended use of the cache? Did you reset?"
+        else:
+            class_covariances = self._calc_train_class_covariance(wrapped_model, dataset)
+
+            self._cache[func_id] = class_covariances
+            self._cache_args[func_id] = (wrapped_model, dataset)
+
+        return self._cache[func_id]
+
     @staticmethod
     def _calc_class_means_nums(wrapped_model: Models.ForwardHookedOutput, data_loader: torch.utils.data.DataLoader, num_classes: int, is_one_hot: bool) -> Tuple[Dict[str, torch.Tensor], torch.Tensor]:
         device = next(iter(wrapped_model.parameters())).device
         class_trace_sums = {layer_name: None for layer_name in wrapped_model.output_layers}
         class_nums = torch.zeros((num_classes,)).to(device)
 
-        for inputs, targets in data_loader:
+        for inputs, targets in tqdm.tqdm(data_loader, leave=False, desc=f"  Cache; class means"):
             inputs, targets = inputs.to(device), targets.to(device)
             preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
             one_hot_targets = F.one_hot(targets, num_classes=num_classes) if not is_one_hot else targets
@@ -307,22 +379,6 @@ class SharedMeasurementVars:
 
         return class_nums
 
-    def get_train_class_covariance(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper) -> Dict[str, torch.Tensor]:
-        """Get the activation covariances within each class
-
-        :return: Dict of layer_id to torch tensor of size (embedding_width, embedding_width).
-       """
-        func_id = self.get_train_class_covariance
-        if func_id in self._cache.keys():
-            assert (wrapped_model, dataset) == self._cache_args[func_id], "Got different arguments when calling cache, is this intended use of the cache? Did you reset?"
-        else:
-            class_covariances = self._calc_train_class_covariance(wrapped_model, dataset)
-
-            self._cache[func_id] = class_covariances
-            self._cache_args[func_id] = (wrapped_model, dataset)
-
-        return self._cache[func_id]
-
     def _calc_train_class_covariance(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper) -> Dict[str, torch.Tensor]:
         wrapped_model.base_model.eval()
         device = next(wrapped_model.parameters()).device
@@ -360,7 +416,7 @@ class SharedMeasurementVars:
                     flat_activations = torch.flatten(embeddings[layer_name], start_dim=1)
                     if layer_name not in cov_within.keys():
                         activation_size = flat_activations.size()[-1]
-                        cov_within[layer_name] = torch.zeros((activation_size, activation_size), device='cpu')
+                        cov_within[layer_name] = torch.zeros((dataset.num_classes, activation_size, activation_size), device='cpu')
 
                     for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
                         if not len(class_batch_indexes):  # Continue if no images classified to this class
@@ -389,11 +445,11 @@ class SharedMeasurementVars:
                             cov = torch.matmul(rel_class_activations.unsqueeze(-1),  # B CHW 1
                                                rel_class_activations.unsqueeze(1))  # B 1 CHW
 
-                        cov_within[layer_name] += torch.sum(cov, dim=0).detach().to('cpu')
+                        cov_within[layer_name][class_idx] += torch.sum(cov, dim=0).detach().to('cpu')
 
         # Make cov_within an average instead of a sum
         for layer_name, cov_within_sum in cov_within.items():
-            cov_within[layer_name] = cov_within_sum / torch.sum(class_num_samples).to('cpu')  # TODO(marius): Use bessels correction?
+            cov_within[layer_name] = cov_within_sum / class_num_samples.unsqueeze(-1).unsqueeze(-1).to('cpu')  # TODO(marius): Use bessels correction?
 
         return cov_within
 
@@ -405,10 +461,10 @@ def _test_cache():
     exp = Experiment(config_path)
     # exp.do_measurements()
     cache = SharedMeasurementVars()
-    print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
-    print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
+    # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
+    # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
     cache.reset()
-    print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
+    # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
 
 
 if __name__ == '__main__':
