@@ -95,13 +95,13 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         base_model = models.resnet18(pretrained=False)
         # Set input channels to match input channels of dataset
         data_input_channels = datasetwrapper.input_batch_shape[1]
-        if base_model.conv1.in_channels != data_input_channels:
+        old_layer = base_model.conv1
+        if old_layer.in_channels != data_input_channels:
             # base_model.conv1 = nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-            old_layer = base_model.conv1
             base_model.conv1 = nn.Conv2d(
                 in_channels=data_input_channels,
                 out_channels=old_layer.out_channels, kernel_size=old_layer.kernel_size,
-                stride=old_layer.stride, padding=old_layer.padding, bias=old_layer.bias
+                stride=old_layer.stride, padding=old_layer.padding, bias=old_layer.bias is not None
             )
 
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
@@ -114,8 +114,24 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             output_size=datasetwrapper.num_classes,
             use_batch_norm='_nobn' not in model_name
         )
+    elif model_name.startswith('vgg'):
+        assert hasattr(models, model_name), f"Model type not supported: {model_name}"
+        base_model = getattr(models, model_name)(pretrained=False)
+
+        # Check input channels and change layer if needed
+        data_input_channels = datasetwrapper.input_batch_shape[1]
+        old_layer = base_model.features[0]
+        if old_layer.in_channels != data_input_channels:
+            # base_model.conv1 = nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+            base_model.features[0] = nn.Conv2d(
+                in_channels=data_input_channels,
+                out_channels=old_layer.out_channels, kernel_size=old_layer.kernel_size,
+                stride=old_layer.stride, padding=old_layer.padding, bias=old_layer.bias is not None
+            )
+        # Set output number of classes
+        base_model.classifier[-1] = nn.Linear(in_features=base_model.classifier[6].in_features, out_features=datasetwrapper.num_classes)
     else:
-        assert model_cfg['model-name'].lower() in ('resnet18', 'mlp', 'mlp_bn', 'mlp_large', 'mlp_large_bn'),\
+        assert model_cfg['model-name'].lower() in ('resnet18', 'mlp', 'mlp_bn', 'mlp_large', 'mlp_large_bn') or model_name.startswith('vgg'),\
             f"Model type not supported: {model_cfg['model-name']}"
         raise NotImplementedError
 
