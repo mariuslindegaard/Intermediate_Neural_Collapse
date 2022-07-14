@@ -65,6 +65,10 @@ def slice_to_smaller_batch(*args: Tuple[torch.Tensor, ...], batch_size: int = 1)
 def rgetattr(obj, attr, *args):
     """Implementation of recursive getattr for nested objects"""
     def _getattr(obj, attr):
-        return getattr(obj, attr, *args)
+        try:
+            integer_index = int(attr)
+            return obj[integer_index]
+        except ValueError as e:
+            return getattr(obj, attr, *args)
     return functools.reduce(_getattr, [obj] + attr.split('.'))
 
