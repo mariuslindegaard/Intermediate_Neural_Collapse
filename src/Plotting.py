@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import tqdm
 
 import os
 import yaml
@@ -92,11 +93,6 @@ def plot_runs_svds(base_dir, run_config_params):
         'MLPSVDMeasure': None  # dict(x='epoch', hue='split', style=None)
     }
 
-    layers = ['model.block0.fc']
-    epochs = [0, 5, 40, 300]
-
-    # TODO(marius): Index df by layers and epochs, (put plots in separate files,) and reshape into a df that can be used by sns.clustermap.
-
     for measure, plot_config in relevant_measures.items():
         print(f"Plotting {measure}:")
         for run_dir in filter_configs(base_dir, run_config_params):
@@ -107,7 +103,18 @@ def plot_runs_svds(base_dir, run_config_params):
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
             sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'] <= 4)
 
-            for epoch in epochs:
+            # layers = ['model.block0.fc', 'model.block4.fc', 'model.block9.fc']
+            layers = measure_df['layer_name'].unique()
+            # epochs = [0, 5, 40, 300]
+            epochs = measure_df['epoch'].unique()
+
+            savepath = os.path.join(savedir.plots, measure)
+            if not os.path.exists(savepath):
+                os.makedirs(savepath)
+            savepath = os.path.join(savepath, r'{layer}_e{epoch}.pdf')
+            print(f"saving to {savepath}")
+
+            for epoch in tqdm.tqdm(epochs[::-1], leave=False):
                 for layer in layers:
                     fig = plt.figure(figsize=(8, 6))
                     selection = (measure_df['epoch'] == epoch) & (measure_df['layer_name'] == layer) & sub_selection
@@ -115,15 +122,18 @@ def plot_runs_svds(base_dir, run_config_params):
 
                     corr_df = utils.corr_from_df(measure_df[selection])
 
-                    sns.heatmap(corr_df.applymap(abs), cmap='vlag', vmin=-0.5, vmax=0.5)
+                    sns.heatmap(corr_df.applymap(abs),
+                                # cmap='vlag', vmin=-0.5, vmax=0.5,
+                                cmap='inferno', vmin=0.0, vmax=0.5,
+                                )
                     plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
                               f"Epoch: {epoch}, layer: {layer}")
                     plt.tight_layout()
-                    # savepath = os.path.join(savedir.plots, measure + '.pdf')
-                    # print(f"saving to {savepath}")
-                    # plt.savefig(savepath)
-                    plt.show()
-
+                    formatted_savepath = savepath.format(layer=layer, epoch=epoch)
+                    plt.savefig(formatted_savepath)
+                    # plt.show()
+                    plt.close()
+            print()
 
 
 def plot_runs_rel_trace(base_dir, run_config_params):
@@ -191,7 +201,7 @@ def main(logs_parent_dir: str):
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        Logging={'save-dir': 'logs/mlp_aug'},
+        Logging={'save-dir': 'logs/mlp_mnist'},
         # Measurements={},
     )
     plot_runs_svds(logs_parent_dir, run_config_params)
