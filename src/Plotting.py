@@ -6,6 +6,7 @@ import os
 import yaml
 
 from Logger import SaveDirs
+import utils
 
 from typing import Dict, Any, Iterator, List
 
@@ -54,16 +55,9 @@ def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]], re
             yield run_dir
 
 
-def plot_runs(base_dir):
+def plot_runs(base_dir, run_config_params):
     """The base plotting function to copy and modify."""
 
-    run_config_params = dict(
-        # Model={'model-name': 'resnet18'},
-        # Data={'dataset-id': 'cifar10'},
-        # Optimizer={},
-        # Logging={},
-        # Measurements={},
-    )
     relevant_measures = {
         'AccuracyMeasure': dict(x='epoch', hue='split', style=None)
     }
@@ -91,17 +85,50 @@ def plot_runs(base_dir):
             plt.show()
 
 
+def plot_runs_svds(base_dir, run_config_params):
+    """For plotting the SVD correlation matrices."""
 
-def plot_runs_rel_trace(base_dir):
+    relevant_measures = {
+        'MLPSVDMeasure': None  # dict(x='epoch', hue='split', style=None)
+    }
+
+    layers = ['model.block0.fc']
+    epochs = [0, 5, 40, 300]
+
+    # TODO(marius): Index df by layers and epochs, (put plots in separate files,) and reshape into a df that can be used by sns.clustermap.
+
+    for measure, plot_config in relevant_measures.items():
+        print(f"Plotting {measure}:")
+        for run_dir in filter_configs(base_dir, run_config_params):
+            print(f"\t{run_dir}", end=', ')
+            savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
+            # TODO(marius): Merge dataframes and plot
+            # TODO(marius): Check if measurements file exists and warn+continue if not.
+            measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'] <= 4)
+
+            for epoch in epochs:
+                for layer in layers:
+                    fig = plt.figure(figsize=(8, 6))
+                    selection = (measure_df['epoch'] == epoch) & (measure_df['layer_name'] == layer) & sub_selection
+
+
+                    corr_df = utils.corr_from_df(measure_df[selection])
+
+                    sns.heatmap(corr_df.applymap(abs), cmap='vlag', vmin=-0.5, vmax=0.5)
+                    plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
+                              f"Epoch: {epoch}, layer: {layer}")
+                    plt.tight_layout()
+                    # savepath = os.path.join(savedir.plots, measure + '.pdf')
+                    # print(f"saving to {savepath}")
+                    # plt.savefig(savepath)
+                    plt.show()
+
+
+
+def plot_runs_rel_trace(base_dir, run_config_params):
     """The base plotting function to copy and modify."""
 
-    run_config_params = dict(
-        Model={'model-name': 'mlp_large'},
-        # Data={'dataset-id': 'cifar10'},
-        # Optimizer={},
-        # Logging={},
-        # Measurements={},
-    )
     relevant_measures = {
         'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
         'CDNVMeasure': dict(x='layer_name', hue='epoch'),
@@ -160,8 +187,16 @@ def plot_runs_rel_trace(base_dir):
 def main(logs_parent_dir: str):
     """Run some of the standard plotting on the measurements. Prone to failure!!!"""
     sns.set_theme(style='darkgrid')
-    plot_runs(logs_parent_dir)
-    plot_runs_rel_trace(logs_parent_dir)
+    run_config_params = dict(
+        # Model={'model-name': 'resnet18'},
+        # Data={'dataset-id': 'cifar10'},
+        # Optimizer={},
+        Logging={'save-dir': 'logs/mlp_aug'},
+        # Measurements={},
+    )
+    plot_runs_svds(logs_parent_dir, run_config_params)
+    plot_runs(logs_parent_dir, run_config_params)
+    plot_runs_rel_trace(logs_parent_dir, run_config_params)
 
 
 def _test():

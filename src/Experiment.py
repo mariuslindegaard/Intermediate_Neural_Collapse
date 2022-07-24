@@ -92,7 +92,7 @@ class Experiment:
         else:
             start_epoch = 0
 
-        # todo(marius): Implement tensorboard writer (if needed)
+        # todo(marius): Implement tensorboard writer (if needed), or just writing to logs.
         pbar_epoch = tqdm.tqdm(range(start_epoch, self.wrapped_optimizer.max_epochs),
                                initial=start_epoch, total=self.wrapped_optimizer.max_epochs)
         for epoch in pbar_epoch:
@@ -138,6 +138,7 @@ class Experiment:
 
 def _test():
     # config_path = "../config/default.yaml"
+    # config_path = "../config/vgg16.yaml"
     config_path = "../config/debug.yaml"
     exp = Experiment(config_path)
     exp.train()

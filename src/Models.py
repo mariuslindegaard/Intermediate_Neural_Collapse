@@ -136,7 +136,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         raise NotImplementedError
 
     base_model.to(device)
-    out_layers = model_cfg['embedding_layers']  # TODO(marius): Make support "True" for all layers
+    out_layers = model_cfg['embedding_layers']
     print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
     print("Tracking layers: ", end='\n\t')

@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 
 from typing import Iterator, Tuple, Union, Iterable, Hashable, List
 import functools
@@ -71,4 +72,34 @@ def rgetattr(obj, attr, *args):
         except ValueError as e:
             return getattr(obj, attr, *args)
     return functools.reduce(_getattr, [obj] + attr.split('.'))
+
+
+def corr_from_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Get a correlation dataframe (as in pd.DF.corr()) from a dataframe with (value, l_type, l_ord, r_type, r_ord)
+
+    :param df: Dataframe with (value, l_type, l_ord, r_type, r_ord) as columns
+    :return: Correlation matrix with left-values as row-indices and right-values as columns.
+    """
+    columns = []
+    typename_map = lambda typename: ("w" if str(typename) == '-1' else f"c{typename}")
+    for r_type in df['r_type'].unique():
+        r_type_selection = df['r_type'] == r_type
+        for r_ord in df[r_type_selection]['r_ord'].unique():
+            # Get the selection of data for this right-side-specification (r_type, r_ord)
+            r_selection = r_type_selection & (df[r_type_selection]['r_ord'] == r_ord)
+            # Define column and row names by i.e. the same operation
+            col_name = typename_map(r_type) + f"_{r_ord}"
+            row_names = df[r_selection]['l_type'].map(typename_map) + '_' + df[r_selection]['l_ord'].map(str)
+
+            # Set the data and store the series
+            column = pd.Series(df[r_selection]['value'].to_numpy(), index=row_names, name=col_name)
+            columns.append(column)
+
+    ret = pd.DataFrame(columns).T
+    return ret
+
+
+
+
+
 
