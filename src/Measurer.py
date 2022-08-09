@@ -197,6 +197,7 @@ class NC1Measure(Measurer):
 
         return pd.DataFrame(out)
 
+
 class MLPSVDMeasure(Measurer):
     """Measure MLP SVD metrics"""
 
@@ -225,22 +226,25 @@ class MLPSVDMeasure(Measurer):
             # Get the model weights
             fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
             try:
-                weights = fc_layer.weight.detach().to('cpu')
+                weights = fc_layer.weight
             except AttributeError as e:
                 warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
                 continue
+            weights = weights.detach().to('cpu')
 
-            U_w, S_w, V_w = scipy.linalg.svd(weights)
+            U_w, S_w, Vh_w = scipy.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
 
             num_from_weights = 100
             num_from_class = 10
             for class_idx, class_cov_within in enumerate(layer_classwise_cov_within):
-                U_c, S_c, _ = scipy.linalg.svd(class_cov_within)
-                V_w_sliced = V_w[:num_from_weights]
-                U_c_sliced = U_c[:num_from_class]
+                U_c, S_c, Vh_c = scipy.linalg.svd(class_cov_within)
+                Vh_w_sliced = Vh_w[:num_from_weights]
+                Vh_c_sliced = Vh_c[:num_from_class]  # == U_c[:, :num_from_class]
                 # import pdb; pdb.set_trace()
-                corr = V_w_sliced @ U_c_sliced.T
+                corr = Vh_w_sliced @ Vh_c_sliced.T
                 for (w_idx, c_idx), w_c_corr in np.ndenumerate(corr):
+                    if w_idx >= len(S_w) or c_idx >= len(S_c):  # Don't evaluate if rank is lower than idx
+                        continue
                     out.append({'value': w_c_corr, 'layer_name': layer_name,
                                 'l_type': -1, 'l_ord': w_idx,
                                 'r_type': class_idx, 'r_ord': c_idx,
@@ -432,7 +436,7 @@ class SharedMeasurementVars:
                             cov = torch.matmul(rel_class_activations.unsqueeze(-1),  # B CHW 1
                                                rel_class_activations.unsqueeze(1))  # B 1 CHW
                         except RuntimeError as e:
-                            if not "CUDA out of memory" in str(e):
+                            if "CUDA out of memory" not in str(e):
                                 raise e
                             # warnings.warn("CUDA out of memory")
                             # Use CPU for the rest of this batch, and reduce the "safe" batch size
@@ -452,7 +456,6 @@ class SharedMeasurementVars:
             cov_within[layer_name] = cov_within_sum / class_num_samples.unsqueeze(-1).unsqueeze(-1).to('cpu')  # TODO(marius): Use bessels correction?
 
         return cov_within
-
 
 
 def _test_cache():
