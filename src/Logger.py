@@ -186,7 +186,8 @@ class Logger:
             save_path = os.path.join(self.save_dirs.models, f'{path_specification}.tar')
         else:
             save_path = path_specification
-        checkpoint = torch.load(save_path)
+        device = next(iter(ret_model.parameters())).device
+        checkpoint = torch.load(save_path, map_location=device)
 
         ret_model.load_state_dict(checkpoint['wrapped_model_state_dict'])
         epoch = checkpoint['epoch']
