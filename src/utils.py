@@ -19,16 +19,19 @@ def class_idx_iterator(one_hot_targets: torch.Tensor) -> Iterator[torch.Tensor]:
 
 
 def filter_all_named_modules(model: torch.nn.Module, layer_names: Union[Iterable[Hashable], bool],
-                             require_leaf: bool = False) -> Iterator[Tuple[str, torch.nn.Module]]:
+                             require_leaf: bool = None) -> Iterator[Tuple[str, torch.nn.Module]]:
     """Get all named modules of the model fitting the layer_names (or all layers if layer_names==True).
 
     :param model: Model to get layers of
     :param layer_names: Name of layers (equivalent to 'model.blockname.layername
-    :param require_leaf: Whether to only allow leafs (modules with no children).
+    :param require_leaf: Whether to only allow leafs (modules with no children). If not given defaults to 'False' unless layer_names is True.
     :return: Iterator over (module_name, module) tuples
     """
     yield_all = layer_names is True
+    if require_leaf is None:
+        require_leaf = yield_all
 
+    # TODO(marius): Include check for if layers specifications are never contained in model
     for name, module, in model.named_modules():
         # Don't include if the module has children and we only want leaf modules.
         if require_leaf and len(module.children()) != 0:
@@ -36,7 +39,10 @@ def filter_all_named_modules(model: torch.nn.Module, layer_names: Union[Iterable
 
         if yield_all:
             yield name, module
-        elif sum(map(lambda key: ("^" + name).endswith(str(key)), layer_names)):
+        elif sum(map(  # Check if the condition holds for one of the name specifications:
+                lambda key: ("^" + name).endswith(str(key)),
+                layer_names
+        )):
             yield name, module
 
 
