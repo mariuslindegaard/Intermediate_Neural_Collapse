@@ -108,7 +108,7 @@ class Experiment:
 
     def do_measurements_on_checkpoints(self):
         """Do measurements over all checkpoints saved"""
-        model_path_list = self.logger.get_all_saved_model_paths()
+        model_path_list = list(reversed(self.logger.get_all_saved_model_paths()))
         for model_checkpoint_path in tqdm.tqdm(model_path_list):
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
             self.do_measurements(epoch=epoch)
@@ -137,9 +137,20 @@ class Experiment:
 
 
 def _test():
+    import os
+    import sys
     # config_path = "../config/default.yaml"
     # config_path = "../config/vgg16.yaml"
+    run_on_cbcl = True
+
     config_path = "../config/debug.yaml"
+
+    print(sys.executable)
+    if '/cbcl/cbcl01/lindegrd/miniconda3/envs/' in sys.executable:
+        cbcl_base = '/cbcl/cbcl01/lindegrd/NN_layerwise/src/'
+        config_path = os.path.join(cbcl_base, config_path)
+
+    print(f"Using config at {config_path}")
     exp = Experiment(config_path)
     exp.train()
     print("Running measurements!")
