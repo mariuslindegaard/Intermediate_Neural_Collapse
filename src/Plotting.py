@@ -101,7 +101,7 @@ def plot_runs_svds(base_dir, run_config_params):
             # TODO(marius): Merge dataframes and plot
             # TODO(marius): Check if measurements file exists and warn+continue if not.
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
-            sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'] <= 4)
+            sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m'] + list(map(str, range(4)))))
 
             # layers = ['model.block0.fc', 'model.block4.fc', 'model.block9.fc']
             layers = measure_df['layer_name'].unique()
@@ -124,7 +124,7 @@ def plot_runs_svds(base_dir, run_config_params):
 
                     sns.heatmap(corr_df.applymap(abs),
                                 # cmap='vlag', vmin=-0.5, vmax=0.5,
-                                cmap='inferno', vmin=0.0, vmax=0.5,
+                                cmap='inferno', vmin=0.0, vmax=1,
                                 )
                     plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
                               f"Epoch: {epoch}, layer: {layer}")
@@ -163,6 +163,10 @@ def plot_runs_rel_trace(base_dir, run_config_params):
             selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model')  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
 
             # Plot absolute traces
+            ## If there is a hue-parameter and the x-axis has only one entry, replace the x-axis with the hue-parameter
+            if 'hue' in plot_config.keys() and len(measure_df[selection][plot_config['x']].unique()) == 1:
+                plot_config['x'] = plot_config['hue']
+                del plot_config['hue']
             sns.lineplot(data=measure_df[selection], y='value', **plot_config)
             plt.title(f"{measure} over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
             plt.yscale('log')
@@ -195,13 +199,13 @@ def plot_runs_rel_trace(base_dir, run_config_params):
 
 
 def main(logs_parent_dir: str):
-    """Run some of the standard plotting on the measurements. Prone to failure!!!"""
+    """Run some standard plotting on the measurements. Prone to failure!!!"""
     sns.set_theme(style='darkgrid')
     run_config_params = dict(
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        Logging={'save-dir': 'logs/mlp_mnist'},
+        Logging={'save-dir': 'logs/mlp_single_mnist'},
         # Measurements={},
     )
     plot_runs_svds(logs_parent_dir, run_config_params)

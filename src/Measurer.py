@@ -240,7 +240,20 @@ class MLPSVDMeasure(Measurer):
                 U_c, S_c, Vh_c = scipy.linalg.svd(class_cov_within)
                 Vh_w_sliced = Vh_w[:num_from_weights]
                 Vh_c_sliced = Vh_c[:num_from_class]  # == U_c[:, :num_from_class]
-                # import pdb; pdb.set_trace()
+
+                # Logging inner products of class mean and weight svd
+                class_mean = class_means[layer_name][class_idx].detach().to('cpu').numpy()
+                class_mean /= np.linalg.norm(class_mean)  # Normalize class mean
+                for w_idx, w_singular_vec in enumerate(Vh_w_sliced):
+                    if w_idx >= len(S_w):  # Don't evaluate if rank is lower than idx
+                        continue
+                    correlation = class_mean.T @ w_singular_vec
+                    out.append({'value': correlation, 'layer_name': layer_name,
+                                'l_type': -1, 'l_ord': w_idx,
+                                'r_type': class_idx, 'r_ord': 'm',
+                                })
+
+                # Logging inner products of class covariance and weight svd
                 corr = Vh_w_sliced @ Vh_c_sliced.T
                 for (w_idx, c_idx), w_c_corr in np.ndenumerate(corr):
                     if w_idx >= len(S_w) or c_idx >= len(S_c):  # Don't evaluate if rank is lower than idx
