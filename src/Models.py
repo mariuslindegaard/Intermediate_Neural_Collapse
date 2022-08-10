@@ -107,7 +107,20 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
     elif model_name.startswith('mlp'):
         # hidden_layer_sizes = [128, 128, 64, 64]
-        hidden_layer_sizes = [512] * 5 if '_large' not in model_name else [1024] * 10
+        suffix = model_name[3:]
+        sizes = {
+            '_linear': [],
+            '_single': [512]*1,
+            '_small': [256]*4,
+            '': [512]*5,
+            '_large': [1024]*10,
+        }
+        # hidden_layer_sizes = [512] * 5 if '_large' not in model_name else [1024] * 10
+        try:
+            hidden_layer_sizes = sizes[suffix.lower()]
+        except KeyError:
+            raise NotImplementedError(f'The type of MLP is not implemented: "{suffix}"\nMust be one of {list(sizes.keys())}')
+
         base_model = MLP(
             input_size=datasetwrapper.input_batch_shape[1:].numel(),
             hidden_layers_widths=hidden_layer_sizes,
