@@ -190,9 +190,10 @@ class NC1Measure(Measurer):
             layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
             S_within = layer_cov_within.cpu().numpy()
             S_between = layer_cov_between.cpu().numpy()
-            eigvecs, eigvals, _ = scipy.linalg.svd(S_between)
-            inv_S_between = eigvecs @ np.diag(eigvals ** (-1)) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
-            nc1_value = np.trace(S_within @ inv_S_between)  # \Sigma_w @ \Sigma_b^-1
+            # eigvecs, eigvals, _ = scipy.linalg.svd(S_between)
+            # inv_S_between = eigvecs @ np.diag(eigvals ** (-1)) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
+            inv_S_between, iSb_rank = scipy.linalg.pinv(S_between, return_rank=True)
+            nc1_value = np.sum(np.trace(S_within @ inv_S_between))  # \Sigma_w @ \Sigma_b^-1
             out.append({'value': nc1_value, 'layer_name': layer_name})
 
         return pd.DataFrame(out)
@@ -230,7 +231,7 @@ class MLPSVDMeasure(Measurer):
             except AttributeError as e:
                 warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
                 continue
-            weights = weights.detach().to('cpu')
+            weights = weights.detach().to('cpu').numpy()
 
             U_w, S_w, Vh_w = scipy.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
 
