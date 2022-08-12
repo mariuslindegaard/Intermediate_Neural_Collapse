@@ -480,8 +480,8 @@ class SharedMeasurementVars:
                             # Use CPU for the rest of this batch, and reduce the "safe" batch size
                             use_cpu_for_batch = True
                             old_bs = self.layer_slice_size[layer_name]
-                            self.layer_slice_size[layer_name] = old_bs // 2
-                            batch_pbar.set_description(f"     Batches; Slices: {old_bs}(cpu) -> {old_bs // 2}")
+                            self.layer_slice_size[layer_name] = (old_bs+1) // 2  # Making sure the bs never becomes 0
+                            batch_pbar.set_description(f"     Batches; Slices: {old_bs}(cpu) -> {(old_bs+1) // 2}")
 
                             rel_class_activations = rel_class_activations.detach().to('cpu')
                             cov = torch.matmul(rel_class_activations.unsqueeze(-1),  # B CHW 1
