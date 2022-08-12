@@ -101,20 +101,20 @@ def plot_runs_svds(base_dir, run_config_params):
             # TODO(marius): Merge dataframes and plot
             # TODO(marius): Check if measurements file exists and warn+continue if not.
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
-            sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m'] + list(map(str, range(4)))))
+            # sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m'] + list(map(str, range(4)))))
+            sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m']))  #  & (measure_df['l_type'].isin([-2]))
 
-            # layers = ['model.block0.fc', 'model.block4.fc', 'model.block9.fc']
             layers = measure_df['layer_name'].unique()
-            # epochs = [0, 5, 40, 300]
             epochs = measure_df['epoch'].unique()
 
             savepath = os.path.join(savedir.plots, measure)
             if not os.path.exists(savepath):
                 os.makedirs(savepath)
-            savepath = os.path.join(savepath, r'{layer}_e{epoch}.pdf')
+            savepath = os.path.join(savepath, r'e{epoch}/{layer}.pdf')
             print(f"saving to {savepath}")
 
-            for epoch in tqdm.tqdm(epochs[::-1], leave=False):
+            for epoch in tqdm.tqdm(epochs, leave=False):
+                print(f"Epoch: {epoch}")
                 for layer in layers:
                     fig = plt.figure(figsize=(8, 6))
                     selection = (measure_df['epoch'] == epoch) & (measure_df['layer_name'] == layer) & sub_selection
@@ -122,14 +122,16 @@ def plot_runs_svds(base_dir, run_config_params):
 
                     corr_df = utils.corr_from_df(measure_df[selection])
 
-                    sns.heatmap(corr_df.applymap(abs),
+                    sns.heatmap(corr_df, # .applymap(abs),
                                 # cmap='vlag', vmin=-0.5, vmax=0.5,
-                                cmap='inferno', vmin=0.0, vmax=1,
+                                cmap='inferno', # vmin=0.0, vmax=1,
                                 )
                     plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
                               f"Epoch: {epoch}, layer: {layer}")
                     plt.tight_layout()
                     formatted_savepath = savepath.format(layer=layer, epoch=epoch)
+                    if not os.path.exists(os.path.dirname(formatted_savepath)):
+                        os.makedirs(os.path.dirname(formatted_savepath))
                     plt.savefig(formatted_savepath)
                     # plt.show()
                     plt.close()
@@ -201,11 +203,11 @@ def plot_runs_rel_trace(base_dir, run_config_params):
 def main(logs_parent_dir: str):
     """Run some standard plotting on the measurements. Prone to failure!!!"""
     sns.set_theme(style='darkgrid')
-    run_config_params = dict(
+    run_config_params = dict(  # All parameters must match what is given here.
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        Logging={'save-dir': 'logs/mlp_single_mnist'},
+        Logging={'save-dir': 'logs/debug'},
         # Measurements={},
     )
     plot_runs_svds(logs_parent_dir, run_config_params)
