@@ -198,7 +198,7 @@ class Logger:
         return ret_model, epoch, ret_optimizer
 
     def get_all_saved_model_paths(self) -> List[str]:
-        """Return a tuple of paths to all saved models for this run."""
+        """Return a list of paths to all saved models for this run."""
         model_paths = []
         for saved_path in sorted(os.listdir(self.save_dirs.models)):
             if saved_path == 'latest':
@@ -210,7 +210,7 @@ class Logger:
 
 
     @staticmethod
-    def _torch_tensor_to_float(value: Union[float, torch.Tensor]):
+    def _torch_tensor_to_float(value: Union[float, torch.Tensor]) -> float:
         """Take a torch tensor to a float, and a float to a float."""
         if type(value) is torch.Tensor:
             return value.item()
