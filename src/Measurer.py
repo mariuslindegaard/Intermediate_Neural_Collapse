@@ -190,9 +190,11 @@ class NC1Measure(Measurer):
             layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
             S_within = layer_cov_within.cpu().numpy()
             S_between = layer_cov_between.cpu().numpy()
-            # eigvecs, eigvals, _ = scipy.linalg.svd(S_between)
-            # inv_S_between = eigvecs @ np.diag(eigvals ** (-1)) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
-            inv_S_between, iSb_rank = scipy.linalg.pinv(S_between, return_rank=True)
+            eigvecs, eigvals, _ = scipy.linalg.svd(S_between)
+            inv_eigvals = eigvals ** -1
+            inv_eigvals[dataset.num_classes-1:] = 0  # Only use the first C-1 eigvals, since the relative between-class covariance is rank C-1
+            inv_S_between = eigvecs @ np.diag(inv_eigvals) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
+            # inv_S_between, iSb_rank = scipy.linalg.pinv(S_between, return_rank=True)
             nc1_value = np.sum(np.trace(S_within @ inv_S_between))  # \Sigma_w @ \Sigma_b^-1
             out.append({'value': nc1_value, 'layer_name': layer_name})
 
