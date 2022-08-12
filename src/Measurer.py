@@ -245,6 +245,17 @@ class MLPSVDMeasure(Measurer):
                 # Logging inner products of class mean and weight svd
                 class_mean = class_means[layer_name][class_idx].detach().to('cpu').numpy()
                 class_mean /= np.linalg.norm(class_mean)  # Normalize class mean
+
+                """ For using rows instead of class means
+                for w_idx, w_row in enumerate(weights):
+                    w_row /= np.linalg.norm(w_row)
+                    correlation = class_mean.T @ w_row
+                    out.append({'value': correlation, 'layer_name': layer_name,
+                                'l_type': -2, 'l_ord': w_idx,
+                                'r_type': class_idx, 'r_ord': 'm',
+                                })
+                """
+
                 for w_idx, w_singular_vec in enumerate(Vh_w_sliced):
                     if w_idx >= len(S_w):  # Don't evaluate if rank is lower than idx
                         continue
@@ -253,6 +264,16 @@ class MLPSVDMeasure(Measurer):
                                 'l_type': -1, 'l_ord': w_idx,
                                 'r_type': class_idx, 'r_ord': 'm',
                                 })
+                """ For visualizing singular vectors
+                    # Plot singular vector:
+                    import matplotlib.pyplot as plt
+                    # import pdb; pdb.set_trace()
+                    digit_vec = w_singular_vec
+                    plt.imshow(digit_vec.reshape(32, 32), cmap='gray')
+                    plt.title(f"Singular vector {w_idx} with $\\sigma={S_w[w_idx]:.5G}$\nOut-svec: {np.round(U_w[:,w_idx], 2)}")
+                    plt.savefig(f'tmp_w_{w_idx}')
+                continue
+                """
 
                 # Logging inner products of class covariance and weight svd
                 corr = Vh_w_sliced @ Vh_c_sliced.T
@@ -263,6 +284,7 @@ class MLPSVDMeasure(Measurer):
                                 'l_type': -1, 'l_ord': w_idx,
                                 'r_type': class_idx, 'r_ord': c_idx,
                                 })
+        # exit()
 
         return pd.DataFrame(out)
 
