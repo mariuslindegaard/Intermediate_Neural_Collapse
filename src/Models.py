@@ -88,7 +88,6 @@ class _MLPBlock(nn.Module):
 
 
 def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model_name: str = model_cfg['model-name'].lower()
 
     if model_name == 'resnet18':
@@ -148,10 +147,9 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             f"Model type not supported: {model_cfg['model-name']}"
         raise NotImplementedError
 
-    base_model.to(device)
     out_layers = model_cfg['embedding_layers']
     print(base_model)
-    ret_model = ForwardHookedOutput(base_model, out_layers).to(device)
+    ret_model = ForwardHookedOutput(base_model, out_layers)
     print("Tracking layers: ", end='\n\t')
     print(*ret_model.output_layers, sep=',\n\t')
     return ret_model
