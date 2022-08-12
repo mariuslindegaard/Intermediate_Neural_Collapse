@@ -11,18 +11,18 @@ Data:
 
 Optimizer:
   loss: mseloss
-  weight-decay: 2.e-4    # Weight decay
+  weight-decay: 2.e-3    # Weight decay
   lr: 0.0067             # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
-  epochs: 15             # Number of epochs to train for
+  epochs: 50             # Number of epochs to train for
 
 Logging:
   # When to store weights and calculate measurements
   save-dir: logs/linear_mnist
   # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
-  log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 13, 15]  # Overrides log-interval
+  log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 13, 15, 20, 27, 35, 42, 50]  # Overrides log-interval
 
 Measurements:
   measures: [MLPSVDMeasure, CDNVMeasure, TraceMeasure, AccuracyMeasure, NC1Measure]
