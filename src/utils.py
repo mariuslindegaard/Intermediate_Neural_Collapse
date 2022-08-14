@@ -103,9 +103,3 @@ def corr_from_df(df: pd.DataFrame) -> pd.DataFrame:
 
     ret = pd.DataFrame(columns).T
     return ret
-
-
-
-
-
-
