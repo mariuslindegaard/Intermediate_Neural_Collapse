@@ -222,9 +222,9 @@ class MLPSVDMeasure(Measurer):
                 continue
 
             # Get class means and covariance
-            rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
-            layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes
+            layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
 
             # Get the model weights
             fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
@@ -245,8 +245,8 @@ class MLPSVDMeasure(Measurer):
                 Vh_c_sliced = Vh_c[:num_from_class]  # == U_c[:, :num_from_class]
 
                 # Logging inner products of class mean and weight svd
-                class_mean = class_means[layer_name][class_idx].detach().to('cpu').numpy()
-                class_mean /= np.linalg.norm(class_mean)  # Normalize class mean
+                rel_class_mean = layer_rel_class_means[class_idx].detach().to('cpu').numpy()
+                rel_class_mean /= np.linalg.norm(rel_class_mean)  # Normalize class mean
 
                 """ For using rows instead of class means
                 for w_idx, w_row in enumerate(weights):
@@ -261,7 +261,7 @@ class MLPSVDMeasure(Measurer):
                 for w_idx, w_singular_vec in enumerate(Vh_w_sliced):
                     if w_idx >= len(S_w):  # Don't evaluate if rank is lower than idx
                         continue
-                    correlation = class_mean.T @ w_singular_vec
+                    correlation = rel_class_mean.T @ w_singular_vec
                     out.append({'value': correlation, 'layer_name': layer_name,
                                 'l_type': -1, 'l_ord': w_idx,
                                 'r_type': class_idx, 'r_ord': 'm',

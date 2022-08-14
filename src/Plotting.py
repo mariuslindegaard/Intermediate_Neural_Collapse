@@ -102,7 +102,7 @@ def plot_runs_svds(base_dir, run_config_params):
             # TODO(marius): Check if measurements file exists and warn+continue if not.
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
             # sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m'] + list(map(str, range(4)))))
-            sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m']))  #  & (measure_df['l_type'].isin([-2]))
+            sub_selection = (measure_df['l_ord'] <= 24) & (measure_df['r_ord'].isin(['m']))  #  & (measure_df['l_type'].isin([-2]))
 
             layers = measure_df['layer_name'].unique()
             epochs = measure_df['epoch'].unique()
@@ -110,11 +110,10 @@ def plot_runs_svds(base_dir, run_config_params):
             savepath = os.path.join(savedir.plots, measure)
             if not os.path.exists(savepath):
                 os.makedirs(savepath)
-            savepath = os.path.join(savepath, r'e{epoch}/{layer}.pdf')
+            savepath = os.path.join(savepath, r'e{epoch:0>3}/{layer}.pdf')
             print(f"saving to {savepath}")
 
             for epoch in tqdm.tqdm(epochs, leave=False):
-                print(f"Epoch: {epoch}")
                 for layer in layers:
                     fig = plt.figure(figsize=(8, 6))
                     selection = (measure_df['epoch'] == epoch) & (measure_df['layer_name'] == layer) & sub_selection
@@ -122,9 +121,9 @@ def plot_runs_svds(base_dir, run_config_params):
 
                     corr_df = utils.corr_from_df(measure_df[selection])
 
-                    sns.heatmap(corr_df, # .applymap(abs),
+                    sns.heatmap(corr_df.applymap(abs),
                                 # cmap='vlag', vmin=-0.5, vmax=0.5,
-                                cmap='inferno', # vmin=0.0, vmax=1,
+                                cmap='inferno', vmin=0.0, vmax=1,
                                 )
                     plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
                               f"Epoch: {epoch}, layer: {layer}")
@@ -207,7 +206,7 @@ def main(logs_parent_dir: str):
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        Logging={'save-dir': 'logs/debug'},
+        Logging={'save-dir': 'logs/mlp_normal_mnist'},
         # Measurements={},
     )
     plot_runs_svds(logs_parent_dir, run_config_params)
