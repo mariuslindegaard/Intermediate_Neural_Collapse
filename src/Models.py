@@ -111,19 +111,23 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             '_linear': [],
             '_single': [512]*1,
             '_small': [256]*4,
-            '': [512]*5,
+            '_default': [512]*5,
             '_large': [1024]*10,
         }
-        # hidden_layer_sizes = [512] * 5 if '_large' not in model_name else [1024] * 10
-        try:
-            hidden_layer_sizes = sizes[suffix.lower()]
-        except KeyError:
-            raise NotImplementedError(f'The type of MLP is not implemented: "{suffix}"\nMust be one of {list(sizes.keys())}')
+        sizes_match = ''
+        for sizes_key in sizes.keys():
+            if sizes_key in suffix:
+                assert not sizes_match, f"Multiple matches for given MLP suffix: {sizes_key} and {sizes_match}."
+                sizes_match = sizes_key
+        if not sizes_match:
+            sizes_match = '_default'
+        hidden_layer_sizes = sizes[sizes_match]
 
         base_model = MLP(
             input_size=datasetwrapper.input_batch_shape[1:].numel(),
             hidden_layers_widths=hidden_layer_sizes,
             output_size=datasetwrapper.num_classes,
+            use_bias='_nobias' not in model_name,
             use_batch_norm='_nobn' not in model_name
         )
     elif model_name.startswith('vgg'):
