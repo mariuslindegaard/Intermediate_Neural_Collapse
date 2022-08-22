@@ -80,7 +80,7 @@ def plot_runs(base_dir, run_config_params):
             # plt.yscale('log')
             plt.title(f"{measure} over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
             plt.tight_layout()
-            savepath = os.path.join(savedir.plots, measure + '.pdf')
+            savepath = os.path.join(savedir.plots, measure + '.png')
             print(f"saving to {savepath}")
             plt.savefig(savepath)
             plt.show()
@@ -110,7 +110,7 @@ def plot_runs_svds(base_dir, run_config_params):
             savepath = os.path.join(savedir.plots, measure)
             if not os.path.exists(savepath):
                 os.makedirs(savepath)
-            savepath = os.path.join(savepath, r'e{epoch:0>3}/{layer}.pdf')
+            savepath = os.path.join(savepath, r'e{epoch:0>3}/{layer}.png')
             print(f"saving to {savepath}")
 
             for epoch in tqdm.tqdm(epochs, leave=False):
@@ -121,9 +121,11 @@ def plot_runs_svds(base_dir, run_config_params):
 
                     corr_df = utils.corr_from_df(measure_df[selection])
 
-                    sns.heatmap(corr_df.applymap(abs),
-                                # cmap='vlag', vmin=-0.5, vmax=0.5,
-                                cmap='inferno', vmin=0.0, vmax=1,
+                    sns.heatmap(
+                        # data=corr_df.applymap(abs),
+                        # cmap='inferno', vmin=0.0, vmax=1,
+                        data=corr_df,
+                        cmap='vlag', # vmin=-0.5, vmax=0.5,
                                 )
                     plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
                               f"Epoch: {epoch}, layer: {layer}")
@@ -137,13 +139,14 @@ def plot_runs_svds(base_dir, run_config_params):
             print()
 
 
-def plot_runs_rel_trace(base_dir, run_config_params):
+def plot_runs_rel_trace(base_dir, run_config_params, tmp=0):
     """The base plotting function to copy and modify."""
 
     relevant_measures = {
-        'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
-        'CDNVMeasure': dict(x='layer_name', hue='epoch'),
-        'NC1Measure': dict(x='layer_name', hue='epoch'),
+        'Variance': dict(x='layer_name', hue='sigma_idx'),  # Remember to modify code too if needed when uncommenting others
+        # 'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
+        # 'CDNVMeasure': dict(x='layer_name', hue='epoch'),
+        # 'NC1Measure': dict(x='layer_name', hue='epoch'),
     }
 
     for measure, plot_config in relevant_measures.items():
@@ -160,8 +163,14 @@ def plot_runs_rel_trace(base_dir, run_config_params):
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
 
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
-            # selection = measure_df['epoch'].isin([0, 40, 160, 200])
+            # selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300]) & (measure_df['layer_name'] != 'model')
+            # selection = measure_df['epoch'].isin([10, 100, 300]) & (measure_df['layer_name'] != 'model')
             selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model')  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+
+            if measure == 'Variance':  # TODO(marius): Make less hacky
+                selection &= measure_df['sum'].isin([False])
+                selection &= measure_df['sigma_idx'].isin([i for i in range(20)])
+                selection &= measure_df['epoch'].isin([tmp])
 
             # Plot absolute traces
             ## If there is a hue-parameter and the x-axis has only one entry, replace the x-axis with the hue-parameter
@@ -189,14 +198,148 @@ def plot_runs_rel_trace(base_dir, run_config_params):
                 # sns.lineplot(data=df[selection][df[selection]['trace'] == 'between'], y='value', **plot_config)
                 plt.yscale('log')
                 plt.legend(loc='center left')
+            elif measure == 'Variance':
+                plt.yscale('log')
+                plt.ylabel(r'$\sum_{i=1}^{m}\sigma_i / \sum_{i}\sigma_i$')
+                plt.title(f"Singular values as proportion of trace norm: Epoch {tmp}\n{os.path.split(savedir.base)[-1]}")
 
             plt.xticks(rotation=90)
 
             plt.tight_layout()
-            savepath = os.path.join(savedir.plots, measure + '.pdf')
+            savepath = os.path.join(savedir.plots, measure + '.png')
             print(f"saving to {savepath}")
             plt.savefig(savepath)
             plt.show()
+
+
+def abstract_plot():
+
+    sns.set_theme(style='darkgrid')
+    root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
+    savedir = SaveDirs(os.path.join(root_dir, 'logs/mlp_mnist'), timestamp_subdir=False, use_existing=True)
+
+    # Do the trace plot:
+    fig, axes = plt.subplots(2, 2, figsize=(12, 6)) #  , sharex='col')
+    plt.sca(axes[0][0])
+    measure = 'TraceMeasure'
+    plot_config = dict(x='layer_name', hue='epoch', style='trace', )  # style_order=['sum', 'between', 'within'])
+    measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+    selection = measure_df['epoch'].isin([10, 100, 300]) & (measure_df['layer_name'] != 'model')
+
+    # Replace stuff for formatting
+    layer_replacing_dict = {f'model.block{i}.fc': str(i) for i in range(10)}
+    layer_replacing_dict['model.fc'] = '10'
+    measure_df = measure_df.replace({'layer_name': layer_replacing_dict})
+
+    # sns.lineplot(data=measure_df[selection], y='value', **plot_config)
+    # plt.title(f"{measure} over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
+    # plt.yscale('log')
+
+    # Plot relative trace
+    if measure == "TraceMeasure":
+        # plt.legend(loc='center left')
+        plt.sca(axes[0][0])
+        df = measure_df
+        total_trace_sel = df['trace'] == 'sum'
+        between_trace_sel = df['trace'] == 'between'
+        within_trace_sel = df['trace'] == 'within'
+        total_trace = df['value'].to_numpy()[total_trace_sel]
+        df.at[between_trace_sel, 'value'] = df['value'].to_numpy()[between_trace_sel] / total_trace
+        df.at[within_trace_sel, 'value'] = df['value'].to_numpy()[within_trace_sel] / total_trace
+        sns.lineplot(data=df[selection][df[selection]['trace'] != 'sum'], y='value', **plot_config)
+        # plt.yscale('log')
+
+    # axes[0][0].get_legend().remove()
+    axes[0][0].set_title("Metrics through neural network layers:\nRelative covariance contribution")
+    # axes[0][0].set_ylabel("Trace")
+
+    axes[0][0].legend(loc='best')
+    axes[0][0].set_xlabel("Layer")
+    axes[0][0].set_ylabel("Relative trace")
+
+    # SVD plots:
+    measure = 'MLPSVDMeasure'
+    measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+    sub_selection = (measure_df['l_ord'] <= 19) & (measure_df['r_ord'].isin(['m']))  # & (measure_df['l_type'].isin([-2]))
+
+    epoch = 300
+    layers = ['model.block4.fc', 'model.fc']
+
+    for plot_idx, layer in enumerate(layers):
+        plt.sca(axes[plot_idx][1])
+        selection = (measure_df['epoch'] == epoch) & (measure_df['layer_name'] == layer) & sub_selection
+
+        corr_df = utils.corr_from_df(measure_df[selection])
+
+        # corr_df = corr_df.rename(index=[str(i) for i in range(10)], inplace=True)
+        corr_df.index = pd.Index([f"{i+1}" for i in range(len(corr_df.index))])
+        corr_df.columns = pd.Index([f"{i+1}" for i in range(len(corr_df.columns))])
+
+        sns.heatmap(
+            data=corr_df.applymap(abs), vmin=0.0, vmax=0.8,
+            # cmap='mako_r', # vmin=0.0, vmax=1,
+            cmap=sns.light_palette('red', as_cmap=True),
+            # data=corr_df, vmin=-0.8, vmax=0.8,
+            # cmap='vlag',
+        )
+        # plt.xticks(rotation=0)
+        plt.yticks(rotation=0)
+        plt.ylabel(
+            # ("Layer 10:" if layer == 'model.fc' else "Layer 4:") +
+            " Singular vector"
+        )
+
+    axes[0][1].set_title("Cosine angle between class means and singular vectors:\nLayer 4")
+    axes[0][1].set_xlabel("Class mean")
+    axes[1][1].set_title("Layer 10")
+    axes[1][1].set_xlabel("Class mean")
+
+    plt.tight_layout()
+    plt.savefig('../tmp/trace_and_cosine.png')
+    # plt.show()
+
+
+    # Variance plot:
+    plt.sca(axes[1][0])
+    measure = 'Variance'
+    measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+    measure_df = measure_df.replace({'layer_name': layer_replacing_dict})
+
+    measure_df['sigma_idx'] = measure_df['sigma_idx'].map(lambda i: i+1)  # Make sigma 1-indexed
+    # sigma_choice = [5, 10, 20, 40, 80]
+    sigma_choice = [10]
+    # sigma_choice = [i+1 for i in range(20)]
+
+    selection = (measure_df['layer_name'] != 'model') & (measure_df['sum'].isin([True]))
+    selection &= measure_df['sigma_idx'].isin(sigma_choice)
+    selection &= measure_df['epoch'].isin([300])  # measure_df['sigma_idx'].isin([])
+
+    sns.lineplot(
+        data=measure_df[selection], y='value', x='layer_name',
+        style='sigma_idx',
+        markers=['s'],
+        # hue='sigma_idx',
+        # palette=sns.color_palette("husl", len(sigma_choice)),
+        # hue='epoch',
+    )
+
+    # plt.ylabel("Relative sum")
+    # plt.title(f"{measure} over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
+    plt.xlabel("Layer")
+    # plt.ylabel(r'$\sum_{i=1}^{10}\sigma_i / \sum_{i}\sigma_i$')
+    plt.ylabel('Normalized cumulative sum')
+    # plt.title(f"First n singular vectors part of total variance for \n{os.path.split(savedir.base)[-1]}")
+    plt.title('Sum of first $C=10$ singular values as proportion of total sum')
+    axes[1][0].get_legend().remove()
+    # plt.legend(title=None, labels=[r'$\dfrac{\sum^{10}_{i=1} \sigma_i}{\sum_{i=0}^{512}\sigma_{i}}$'])
+    # plt.legend(title=None, labels=[''])
+
+    plt.tight_layout()
+    # plt.savefig('../tmp/singular_values.png')
+    plt.savefig('../tmp/trace_singularvalues_cosine.png')
+    plt.show()
+
+    pass
 
 
 def main(logs_parent_dir: str):
@@ -206,12 +349,13 @@ def main(logs_parent_dir: str):
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        Logging={'save-dir': 'logs/mlp_normal_mnist'},
+        Logging={'save-dir': 'logs/mlp_mnist'},
         # Measurements={},
     )
-    plot_runs_svds(logs_parent_dir, run_config_params)
-    plot_runs(logs_parent_dir, run_config_params)
-    plot_runs_rel_trace(logs_parent_dir, run_config_params)
+    # plot_runs_svds(logs_parent_dir, run_config_params)
+    # plot_runs(logs_parent_dir, run_config_params)
+    for i in [0, 1, 3, 5, 10, 20, 30, 50, 80, 100, 150, 200, 250, 300]:
+        plot_runs_rel_trace(logs_parent_dir, run_config_params, tmp=i)
 
 
 def _test():
@@ -222,3 +366,4 @@ def _test():
 
 if __name__ == '__main__':
     _test()
+    # abstract_plot()

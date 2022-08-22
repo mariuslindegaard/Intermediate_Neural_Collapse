@@ -201,6 +201,42 @@ class NC1Measure(Measurer):
         return pd.DataFrame(out)
 
 
+class SingularValues(Measurer):
+    """Singular values and their cumulative sum in weight matrix. Relative to total."""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        # if shared_cache is None:
+        #     shared_cache = SharedMeasurementVars()
+
+        # wrapped_model.base_model.eval()
+        # device = next(wrapped_model.parameters()).device
+
+        # Calculate
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  VarExpl.', leave=False):
+            if not layer_name.endswith('fc'):
+                continue
+
+            # Get the model weights
+            fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
+            try:
+                weights = fc_layer.weight
+            except AttributeError as e:
+                warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                continue
+            weights = weights.detach().to('cpu').numpy()
+
+            U_w, S_w, Vh_w = scipy.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
+
+            rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
+            rel_sigmas = S_w / np.sum(S_w)
+            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+                out.append({'value': rel_sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
+                out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
+
+        return pd.DataFrame(out)
+
+
 class MLPSVDMeasure(Measurer):
     """Measure MLP SVD metrics"""
 
@@ -245,8 +281,8 @@ class MLPSVDMeasure(Measurer):
                 Vh_c_sliced = Vh_c[:num_from_class]  # == U_c[:, :num_from_class]
 
                 # Logging inner products of class mean and weight svd
-                rel_class_mean = layer_rel_class_means[class_idx].detach().to('cpu').numpy()
-                rel_class_mean /= np.linalg.norm(rel_class_mean)  # Normalize class mean
+                class_mean = class_means[layer_name][class_idx].detach().to('cpu').numpy()
+                class_mean /= np.linalg.norm(class_mean)  # Normalize class mean
 
                 """ For using rows instead of class means
                 for w_idx, w_row in enumerate(weights):
@@ -261,7 +297,7 @@ class MLPSVDMeasure(Measurer):
                 for w_idx, w_singular_vec in enumerate(Vh_w_sliced):
                     if w_idx >= len(S_w):  # Don't evaluate if rank is lower than idx
                         continue
-                    correlation = rel_class_mean.T @ w_singular_vec
+                    correlation = class_mean.T @ w_singular_vec
                     out.append({'value': correlation, 'layer_name': layer_name,
                                 'l_type': -1, 'l_ord': w_idx,
                                 'r_type': class_idx, 'r_ord': 'm',
