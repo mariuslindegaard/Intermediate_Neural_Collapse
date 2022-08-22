@@ -77,9 +77,10 @@ class Experiment:
 
             correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).sum().item()
 
-            pbar_batch.set_description(f'Loss: {loss.item():0.4G}  LR: {optimizer.param_groups[0]["lr"]:0.2G} Acc: {correct/len(inputs):0.3G}')
+            pbar_batch.set_description(f'Loss: {loss.item():5.3E}  LR: {optimizer.param_groups[0]["lr"]:.2G} Acc: {correct/len(inputs): <5.3G}')
 
     def train(self):
+        # Start from checkpoint or skip training if previously trained
         if self.logger.get_all_saved_model_paths():
             latest_checkpoint_path = sorted(self.logger.get_all_saved_model_paths())[-1]
             _, start_epoch, _ = self.logger.load_model(
@@ -94,7 +95,9 @@ class Experiment:
 
         # todo(marius): Implement tensorboard writer (if needed), or just writing to logs.
         pbar_epoch = tqdm.tqdm(range(start_epoch, self.wrapped_optimizer.max_epochs),
-                               initial=start_epoch, total=self.wrapped_optimizer.max_epochs)
+                               initial=start_epoch, total=self.wrapped_optimizer.max_epochs,
+                               desc='Epochs',
+                               )
         for epoch in pbar_epoch:
             # todo(marius): Implement warmup training (if wanting to copy cifar_100 repo exactly)
             if epoch in self.logger.log_epochs:
@@ -109,7 +112,7 @@ class Experiment:
     def do_measurements_on_checkpoints(self):
         """Do measurements over all checkpoints saved"""
         model_path_list = list(reversed(self.logger.get_all_saved_model_paths()))
-        for model_checkpoint_path in tqdm.tqdm(model_path_list):
+        for model_checkpoint_path in tqdm.tqdm(model_path_list, desc='Checkpoints'):
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
             self.do_measurements(epoch=epoch)
 
@@ -124,7 +127,7 @@ class Experiment:
         all_measurements = OrderedDict()
         pbar_measurements = tqdm.tqdm(measurement_dict.items(), leave=None)
         for measurement_id, measurer in pbar_measurements:
-            pbar_measurements.set_description(measurement_id)
+            pbar_measurements.set_description(f"Measure: {measurement_id}")
             measurement_result_df: pd.DataFrame = measurer.measure(
                 self.wrapped_model, self.dataset, shared_cache=shared_cache
             )
