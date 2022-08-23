@@ -111,6 +111,8 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             '_linear': [],
             '_single': [512]*1,
             '_small': [256]*4,
+            '_wide': [1024]*4,
+            '_xwide': [2048]*4,
             '_default': [512]*5,
             '_large': [1024]*10,
         }
