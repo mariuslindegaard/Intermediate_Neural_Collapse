@@ -23,10 +23,14 @@ def filter_all_named_modules(model: torch.nn.Module, layer_names: Union[Iterable
     """Get all named modules of the model fitting the layer_names (or all layers if layer_names==True).
 
     :param model: Model to get layers of
-    :param layer_names: Name of layers (equivalent to 'model.blockname.layername
-    :param require_leaf: Whether to only allow leafs (modules with no children). If not given defaults to 'False' unless layer_names is True.
+    :param layer_names: Name of layers (equivalent to 'model.blockname.layername').
+            If True will give all leaf-layers (see require_leaf), and False will give none
+    :param require_leaf: Whether to only allow leaves (modules with no children).
+            If not given defaults to 'False' unless layer_names is True.
     :return: Iterator over (module_name, module) tuples
     """
+    if not layer_names:
+        return
     yield_all = layer_names is True
     if require_leaf is None:
         require_leaf = yield_all
