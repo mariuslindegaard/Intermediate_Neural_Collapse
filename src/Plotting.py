@@ -9,8 +9,11 @@ import yaml
 from Logger import SaveDirs
 import utils
 
-from typing import Dict, Any, Iterator, List
+from typing import Dict, Any, Iterator
+import warnings
 
+FILETYPE = ".pdf"
+# FILETYPE = ".png"
 
 def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]], recurse: bool = False) -> Iterator[str]:
     """Get all run directories in base_dir with configs matching required_params
@@ -80,13 +83,13 @@ def plot_runs(base_dir, run_config_params):
             # plt.yscale('log')
             plt.title(f"{measure} over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
             plt.tight_layout()
-            savepath = os.path.join(savedir.plots, measure + '.png')
+            savepath = os.path.join(savedir.plots, measure + FILETYPE)
             print(f"saving to {savepath}")
             plt.savefig(savepath)
             plt.show()
 
 
-def plot_runs_svds(base_dir, run_config_params):
+def plot_runs_svds(base_dir, run_config_params, selected_epochs=None):
     """For plotting the SVD correlation matrices."""
 
     relevant_measures = {
@@ -110,10 +113,12 @@ def plot_runs_svds(base_dir, run_config_params):
             savepath = os.path.join(savedir.plots, measure)
             if not os.path.exists(savepath):
                 os.makedirs(savepath)
-            savepath = os.path.join(savepath, r'e{epoch:0>3}/{layer}.png')
+            savepath = os.path.join(savepath, r'e{epoch:0>3}/{layer}' + FILETYPE)
             print(f"saving to {savepath}")
 
             for epoch in tqdm.tqdm(epochs, leave=False):
+                if selected_epochs is not None and epoch not in selected_epochs:
+                    continue
                 for layer in layers:
                     fig = plt.figure(figsize=(8, 6))
                     selection = (measure_df['epoch'] == epoch) & (measure_df['layer_name'] == layer) & sub_selection
@@ -122,11 +127,11 @@ def plot_runs_svds(base_dir, run_config_params):
                     corr_df = utils.corr_from_df(measure_df[selection])
 
                     sns.heatmap(
-                        # data=corr_df.applymap(abs),
-                        # cmap='inferno', vmin=0.0, vmax=1,
-                        data=corr_df,
-                        cmap='vlag', # vmin=-0.5, vmax=0.5,
-                                )
+                        data=corr_df.applymap(abs),
+                        cmap=sns.light_palette('red', as_cmap=True), vmin=0.0, vmax=0.8,
+                        # data=corr_df,
+                        # cmap='vlag', vmin=-0.8, vmax=0.8,
+                    )
                     plt.title(f"SVD correlation for {os.path.split(savedir.base)[-1]}:\n"
                               f"Epoch: {epoch}, layer: {layer}")
                     plt.tight_layout()
@@ -139,14 +144,71 @@ def plot_runs_svds(base_dir, run_config_params):
             print()
 
 
-def plot_runs_rel_trace(base_dir, run_config_params, tmp=0):
+def plot_approx_rank(base_dir, run_config_params):
+    """Plot the approximate rank of weight matrices."""
+
+    relevant_measures = {
+        'SingularValues': dict(x='layer_name', hue='epoch'),  # Remember to modify code too if needed when uncommenting others
+    }
+
+    for measure, plot_config in relevant_measures.items():
+        # print(f"Plotting {measure}:")
+        print(f"Plotting approximate rank")
+        for run_dir in filter_configs(base_dir, run_config_params):
+            print(f"\t{run_dir}", end=', ')
+            savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
+
+            fig = plt.figure(figsize=(10, 8))
+
+            try:
+                measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            except FileNotFoundError as e:
+                warnings.warn(str(e))
+                continue
+
+            # Find first sigma where sum of singular values are 0.99 or greater
+            approx_rank_cutoff = 0.99
+            gt_cutoff_df = measure_df[(measure_df['value'] >= approx_rank_cutoff) & (measure_df['sum'].isin([True]))]  # Use only the sigma values greater than 99% (cumulative)
+            approx_rank_df = gt_cutoff_df.loc[gt_cutoff_df.groupby(['epoch', 'layer_name'])['sigma_idx'].idxmin()]  # For each unique combination ['epoch', 'layer_name'], get the value with the lowest sigma value
+            df = approx_rank_df
+            del measure_df
+
+            selection = (df['epoch'] != -1)
+            # selection &= df['epoch'].isin([10, 50, 100, 200, 300])
+            # selection &= (df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection &= (df['layer_name'] != 'model')
+
+            # Plot absolute traces
+            ## If there is a hue-parameter and the x-axis has only one entry, replace the x-axis with the hue-parameter
+            if 'hue' in plot_config.keys() and len(df[selection][plot_config['x']].unique()) == 1:
+                plot_config['x'] = plot_config['hue']
+                del plot_config['hue']
+
+            # Do the plotting
+            sns.lineplot(data=df[selection], y='sigma_idx', **plot_config)
+            plt.title(f"Approximate rank (cutoff {approx_rank_cutoff}) over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
+
+            plt.ylabel(r'Approximate rank')
+            plt.yscale('log')
+
+            plt.xticks(rotation=90)
+
+            plt.tight_layout()
+            savepath = os.path.join(savedir.plots, measure + "_ApproxRank" + FILETYPE)
+            print(f"saving to {savepath}")
+            plt.savefig(savepath)
+            plt.show()
+
+
+
+def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
     """The base plotting function to copy and modify."""
 
     relevant_measures = {
-        'Variance': dict(x='layer_name', hue='sigma_idx'),  # Remember to modify code too if needed when uncommenting others
-        # 'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
-        # 'CDNVMeasure': dict(x='layer_name', hue='epoch'),
-        # 'NC1Measure': dict(x='layer_name', hue='epoch'),
+        'SingularValues': dict(x='layer_name', hue='sigma_idx'),  # Remember to modify code too if needed when uncommenting others
+        'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
+        'CDNVMeasure': dict(x='layer_name', hue='epoch'),
+        'NC1Measure': dict(x='layer_name', hue='epoch'),
     }
 
     for measure, plot_config in relevant_measures.items():
@@ -164,13 +226,16 @@ def plot_runs_rel_trace(base_dir, run_config_params, tmp=0):
 
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
             # selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300]) & (measure_df['layer_name'] != 'model')
-            # selection = measure_df['epoch'].isin([10, 100, 300]) & (measure_df['layer_name'] != 'model')
-            selection = (measure_df['epoch'] != -1) & (measure_df['layer_name'] != 'model')  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection = measure_df['epoch'].isin([10, 50, 100, 200, 300])
+            # selection = (measure_df['epoch'] != -1)  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection &= (measure_df['layer_name'] != 'model')
 
-            if measure == 'Variance':  # TODO(marius): Make less hacky
+            if measure == 'SingularValues':  # TODO(marius): Make less hacky
+                if epoch == -1:
+                    epoch = max(measure_df['epoch'])
                 selection &= measure_df['sum'].isin([False])
                 selection &= measure_df['sigma_idx'].isin([i for i in range(20)])
-                selection &= measure_df['epoch'].isin([tmp])
+                selection &= measure_df['epoch'].isin([epoch])
 
             # Plot absolute traces
             ## If there is a hue-parameter and the x-axis has only one entry, replace the x-axis with the hue-parameter
@@ -198,15 +263,15 @@ def plot_runs_rel_trace(base_dir, run_config_params, tmp=0):
                 # sns.lineplot(data=df[selection][df[selection]['trace'] == 'between'], y='value', **plot_config)
                 plt.yscale('log')
                 plt.legend(loc='center left')
-            elif measure == 'Variance':
+            elif measure == 'SingularValues':
                 plt.yscale('log')
                 plt.ylabel(r'$\sum_{i=1}^{m}\sigma_i / \sum_{i}\sigma_i$')
-                plt.title(f"Singular values as proportion of trace norm: Epoch {tmp}\n{os.path.split(savedir.base)[-1]}")
+                plt.title(f"Singular values as proportion of trace norm: Epoch {epoch}\n{os.path.split(savedir.base)[-1]}")
 
             plt.xticks(rotation=90)
 
             plt.tight_layout()
-            savepath = os.path.join(savedir.plots, measure + '.png')
+            savepath = os.path.join(savedir.plots, measure + FILETYPE)
             print(f"saving to {savepath}")
             plt.savefig(savepath)
             plt.show()
@@ -295,13 +360,13 @@ def abstract_plot():
     axes[1][1].set_xlabel("Class mean")
 
     plt.tight_layout()
-    plt.savefig('../tmp/trace_and_cosine.png')
+    plt.savefig('../tmp/trace_and_cosine' + FILETYPE)
     # plt.show()
 
 
-    # Variance plot:
+    # Singular values plot:
     plt.sca(axes[1][0])
-    measure = 'Variance'
+    measure = 'SingularValues'
     measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
     measure_df = measure_df.replace({'layer_name': layer_replacing_dict})
 
@@ -335,8 +400,8 @@ def abstract_plot():
     # plt.legend(title=None, labels=[''])
 
     plt.tight_layout()
-    # plt.savefig('../tmp/singular_values.png')
-    plt.savefig('../tmp/trace_singularvalues_cosine.png')
+    # plt.savefig('../tmp/singular_values' + FILETYPE)
+    plt.savefig('../tmp/trace_singularvalues_cosine' + FILETYPE)
     plt.show()
 
     pass
@@ -349,13 +414,15 @@ def main(logs_parent_dir: str):
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        Logging={'save-dir': 'logs/mlp_mnist'},
+        # Logging={'save-dir': 'logs/mlp_wide_nobias_nobn_mnist'},
         # Measurements={},
     )
-    # plot_runs_svds(logs_parent_dir, run_config_params)
+    plot_approx_rank(logs_parent_dir, run_config_params)
+    # plot_runs_svds(logs_parent_dir, run_config_params, selected_epochs=[300])
     # plot_runs(logs_parent_dir, run_config_params)
-    for i in [0, 1, 3, 5, 10, 20, 30, 50, 80, 100, 150, 200, 250, 300]:
-        plot_runs_rel_trace(logs_parent_dir, run_config_params, tmp=i)
+    # plot_runs_rel_trace(logs_parent_dir, run_config_params)
+    # for i in [0, 1, 3, 5, 10, 20, 30, 50, 80, 100, 150, 200, 250, 300]:
+    #     plot_runs_rel_trace(logs_parent_dir, run_config_params, epoch=i)
 
 
 def _test():
