@@ -69,7 +69,6 @@ class TraceMeasure(Measurer):
         data_loader = dataset.train_loader
 
         class_trace_sums: Dict[str, Dict[int, float]] = defaultdict(lambda: defaultdict(float))  # Dict of, for each layer a dict of class number to total norm.
-        # class_num_samples = torch.zeros(dataset.num_classes, device=device)
 
         class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
         global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
@@ -80,9 +79,7 @@ class TraceMeasure(Measurer):
             one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
 
             for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
-                # class_num_samples[class_idx] += len(class_batch_indexes)
                 for layer_name, activations in embeddings.items():
-                    # TODO(marius): Verify calculation (norm over sample, sum over batch)
                     class_trace_sums[layer_name][class_idx] += torch.sum(
                         torch.linalg.norm(activations[class_batch_indexes] - class_means[layer_name][class_idx]) ** 2
                     ).item()

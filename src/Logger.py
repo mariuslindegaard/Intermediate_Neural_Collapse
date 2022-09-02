@@ -57,7 +57,7 @@ class SaveDirs:
                 if use_existing:
                     break
 
-                if self._base.endswith(f'_{idx}'):
+                if self._base.endswith(f'_{idx}') and idx != 0:
                     self._base = self._base[:-len(str(idx))]
                 else:
                     self._base += '_'

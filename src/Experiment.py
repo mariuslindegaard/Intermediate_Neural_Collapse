@@ -7,6 +7,7 @@ import tqdm
 import yaml
 from collections import OrderedDict
 import pandas as pd
+import warnings
 
 import Logger
 from DatasetWrapper import DatasetWrapper
@@ -131,7 +132,13 @@ class Experiment:
             measurement_result_df: pd.DataFrame = measurer.measure(
                 self.wrapped_model, self.dataset, shared_cache=shared_cache
             )
-            assert 'value' in measurement_result_df.columns, "Measurement dataframe must contain 'value' field."
+
+            # Check that measurements are good:
+            assert 'value' in measurement_result_df.columns or len(measurement_result_df) == 0,\
+                f"Measurement dataframe for {measurement_id} must contain 'value' field but is {measurement_result_df}"
+            if not len(measurement_result_df):
+                warnings.warn(f"Dataframe for {measurement_id} does not contain data!")
+
             if epoch is not None:
                 measurement_result_df.insert(0, 'epoch', epoch)
             all_measurements[measurement_id] = measurement_result_df
@@ -144,7 +151,7 @@ def _test():
     import sys
     # config_path = "../config/default.yaml"
     # config_path = "../config/vgg16.yaml"
-    run_on_cbcl = True
+    # run_on_cbcl = True
 
     config_path = "../config/debug.yaml"
 
