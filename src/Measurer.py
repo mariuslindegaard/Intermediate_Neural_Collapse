@@ -149,7 +149,7 @@ class CDNVMeasure(Measurer):
 
             mean_diffs = torch.cdist(rel_class_means, rel_class_means)
             var_sums = var_per_sample.reshape(-1, 1) + var_per_sample
-            cdnv = var_sums / torch.clamp(2*mean_diffs, min=1E-15)  # Clamp to avoid div by 0
+            cdnv = var_sums / torch.clamp(2*mean_diffs**2, min=1E-15)  # Clamp to avoid div by 0
             cdnv.fill_diagonal_(0)
             sum_cdnv = torch.sum(cdnv).item()
 
