@@ -14,7 +14,7 @@ Model:
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
-  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: mnist      # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 128        # Mini-batch size
   do-augmentation: False # Whether to do data augmentation
 
