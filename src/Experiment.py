@@ -123,7 +123,7 @@ class Experiment:
         :param epoch: Which epoch to assign to the measurements for this model (w/ parameters)
         """
         measurement_dict = self.measures
-        shared_cache = Measurer.SharedMeasurementVars()
+        shared_cache = Measurer.SharedMeasurementVarsCache()
 
         all_measurements = OrderedDict()
         pbar_measurements = tqdm.tqdm(measurement_dict.items(), leave=None)

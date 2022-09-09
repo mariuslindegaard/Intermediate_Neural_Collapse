@@ -31,7 +31,7 @@ class AccuracyMeasure(Measurer):
     """Measure test and train accuracy"""
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
-            shared_cache = SharedMeasurementVars()
+            shared_cache = SharedMeasurementVarsCache()
         wrapped_model.eval()  # TODO(marius): Might throw error. If not: Change in TraceMeasure too
         device = next(wrapped_model.parameters()).device
 
@@ -62,7 +62,7 @@ class TraceMeasure(Measurer):
     """Measure traces of activations in relevant layers"""
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
-            shared_cache = SharedMeasurementVars()
+            shared_cache = SharedMeasurementVarsCache()
 
         wrapped_model.base_model.eval()
         device = next(wrapped_model.parameters()).device
@@ -107,7 +107,7 @@ class CDNVMeasure(Measurer):
     """Measure the CDNV metric introduced for neural collapse by Tomer Galanti."""
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
-            shared_cache = SharedMeasurementVars()
+            shared_cache = SharedMeasurementVarsCache()
 
         wrapped_model.base_model.eval()
         device = next(wrapped_model.parameters()).device
@@ -163,7 +163,7 @@ class NC1Measure(Measurer):
 
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
-            shared_cache = SharedMeasurementVars()
+            shared_cache = SharedMeasurementVarsCache()
 
         wrapped_model.base_model.eval()
         device = next(wrapped_model.parameters()).device
@@ -234,12 +234,42 @@ class SingularValues(Measurer):
         return pd.DataFrame(out)
 
 
+class ActivationCovSVs(Measurer):
+    """Singular values of activation covariance matrix."""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        # class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        # global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+        # Calculate for each layer and each class
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  ActivationCovSVs.', leave=False):
+            for class_idx, class_cov_within in enumerate(classwise_cov_within[layer_name]):
+                # U_w, S_w, Vh_w = torch.linalg.svd(class_cov_within.detach())  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
+                S_w = torch.linalg.svdvals(class_cov_within.detach())
+
+                rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
+                rel_sigmas = S_w / np.sum(S_w)
+                for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+                    out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'sum': False})
+                    out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'sum': True})
+
+        return pd.DataFrame(out)
+
+
 class MLPSVDMeasure(Measurer):
     """Measure MLP SVD metrics"""
 
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
-            shared_cache = SharedMeasurementVars()
+            shared_cache = SharedMeasurementVarsCache()
 
         wrapped_model.base_model.eval()
         device = next(wrapped_model.parameters()).device
@@ -324,7 +354,7 @@ class MLPSVDMeasure(Measurer):
         return pd.DataFrame(out)
 
 
-class SharedMeasurementVars:
+class SharedMeasurementVarsCache:
     """Shared cache of often-used computations used for measurements.
 
     E.g. class means. This allows them to be calculated only once per epoch!
@@ -534,7 +564,7 @@ def _test_cache():
     config_path = "../config/default.yaml"
     exp = Experiment(config_path)
     # exp.do_measurements()
-    cache = SharedMeasurementVars()
+    cache = SharedMeasurementVarsCache()
     # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
     # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
     cache.reset()
