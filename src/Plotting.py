@@ -12,8 +12,8 @@ import utils
 from typing import Dict, Any, Iterator
 import warnings
 
-FILETYPE = ".pdf"
-# FILETYPE = ".png"
+# FILETYPE = ".pdf"
+FILETYPE = ".png"
 
 def filter_configs(base_dir: str, required_params: Dict[str, Dict[str, Any]], recurse: bool = False) -> Iterator[str]:
     """Get all run directories in base_dir with configs matching required_params
@@ -73,8 +73,11 @@ def plot_runs(base_dir, run_config_params):
             savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
             # TODO(marius): Merge dataframes and plot
             fig = plt.figure(figsize=(8, 8))
-            # TODO(marius): Check if measurements file exists and warn+continue if not.
-            measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            try:
+                measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            except FileNotFoundError as e:
+                warnings.warn(str(e))
+                continue
 
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
             selection = measure_df['epoch'] != -1
@@ -102,8 +105,11 @@ def plot_runs_svds(base_dir, run_config_params, selected_epochs=None):
             print(f"\t{run_dir}", end=', ')
             savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
             # TODO(marius): Merge dataframes and plot
-            # TODO(marius): Check if measurements file exists and warn+continue if not.
-            measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            try:
+                measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            except FileNotFoundError as e:
+                warnings.warn(str(e))
+                continue
             # sub_selection = (measure_df['l_ord'] <= 40) & (measure_df['r_ord'].isin(['m'] + list(map(str, range(4)))))
             sub_selection = (measure_df['l_ord'] <= 24) & (measure_df['r_ord'].isin(['m']))  #  & (measure_df['l_type'].isin([-2]))
 
@@ -158,7 +164,6 @@ def plot_approx_rank(base_dir, run_config_params):
             print(f"\t{run_dir}", end=', ')
             savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
 
-            fig = plt.figure(figsize=(10, 8))
 
             try:
                 measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
@@ -166,12 +171,16 @@ def plot_approx_rank(base_dir, run_config_params):
                 warnings.warn(str(e))
                 continue
 
+            # fig = plt.figure(figsize=(10, 2*8))
+            fix, axes = plt.subplots(3, 1, sharex='all', figsize=(10, 2*8))
+            """
+            ### Do Approx rank plot:
             # Find first sigma where sum of singular values are 0.99 or greater
             approx_rank_cutoff = 0.99
             gt_cutoff_df = measure_df[(measure_df['value'] >= approx_rank_cutoff) & (measure_df['sum'].isin([True]))]  # Use only the sigma values greater than 99% (cumulative)
             approx_rank_df = gt_cutoff_df.loc[gt_cutoff_df.groupby(['epoch', 'layer_name'])['sigma_idx'].idxmin()]  # For each unique combination ['epoch', 'layer_name'], get the value with the lowest sigma value
             df = approx_rank_df
-            del measure_df
+            # del measure_df
 
             selection = (df['epoch'] != -1)
             # selection &= df['epoch'].isin([10, 50, 100, 200, 300])
@@ -186,18 +195,129 @@ def plot_approx_rank(base_dir, run_config_params):
 
             # Do the plotting
             sns.lineplot(data=df[selection], y='sigma_idx', **plot_config)
-            plt.title(f"Approximate rank (cutoff {approx_rank_cutoff}) over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
+            """
+            ### Do sing_val_cutoff plot:
+            # fig = plt.figure(figsize=(10, 8))
+            plt.sca(axes[0])
+
+            # Approx rank
+            cutoffs = [0.9, 0.97, 0.99]
+
+            cutoff_df_list = []
+            for cutoff in cutoffs:
+                cutoff_df = measure_df[(measure_df['value'] > cutoff) & (measure_df['sum'].isin([True]))]  # Use only the sigma values greater than 99% (cumulative)
+                cutoff_df = cutoff_df.loc[cutoff_df.groupby(['epoch', 'layer_name'])['sigma_idx'].idxmin()]  # For each unique combination ['epoch', 'layer_name'], get the value with the lowest sigma value
+                cutoff_df.insert(len(cutoff_df.columns), 'cutoff', cutoff)
+                cutoff_df_list.append(cutoff_df)
+
+            df = pd.concat(cutoff_df_list, ignore_index=True)
+
+            selection = df['epoch'] == df['epoch'].max()
+            # selection = (df['epoch'] != -1)
+            # selection &= df['epoch'].isin([10, 50, 100, 200, 300])
+            # selection &= (df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection &= (df['layer_name'] != 'model')
+
+            if 'hue' in plot_config.keys() and len(df[selection][plot_config['x']].unique()) == 1:
+                plot_config['x'] = plot_config['hue']
+                del plot_config['hue']
+
+            # Do the plotting
+            sns.lineplot(data=df[selection], y='sigma_idx', x=plot_config['x'], hue='cutoff', palette='tab10',)  # **plot_config)
+            plt.title(f"Approximate rank over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
 
             plt.ylabel(r'Approximate rank')
             plt.yscale('log')
 
             plt.xticks(rotation=90)
 
+            # plt.tight_layout()
+            # savepath = os.path.join(savedir.plots, measure + "_ApproxRankCutoffs" + FILETYPE)
+            # print(f"saving to {savepath}")
+            # plt.savefig(savepath)
+            # plt.show()
+
+
+            ### Do Stable Rank plot:
+
+            # fig = plt.figure(figsize=(10, 8))
+            plt.sca(axes[1])
+
+            stable_rank_sel = (measure_df['sum'].isin([True])) & (measure_df['sigma_idx'] == 0)
+            df = measure_df[stable_rank_sel]
+            df['value'] = 1 / (df['value'].to_numpy() + 1E-24)
+
+            selection = (df['epoch'] != -1)
+            # selection &= df['epoch'].isin([10, 50, 100, 200, 300])
+            # selection &= (df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection &= (df['layer_name'] != 'model')
+
+            if 'hue' in plot_config.keys() and len(df[selection][plot_config['x']].unique()) == 1:
+                plot_config['x'] = plot_config['hue']
+                del plot_config['hue']
+
+            # Do the plotting
+            sns.lineplot(data=df[selection], y='value', **plot_config)
+            plt.title(f"Stable rank over {plot_config['x']} for \n{os.path.split(savedir.base)[-1]}")
+
+            plt.ylabel(r'Stable rank $\|A\|_F \;/\; \|A\|_2$')  # == $\sum_{i}\sigma_i \; / \max{\sigma_i}$
+            plt.yscale('log')
+
+            plt.xticks(rotation=90)
+
+            # plt.tight_layout()
+            # savepath = os.path.join(savedir.plots, measure + "_StableRank" + FILETYPE)
+            # print(f"saving to {savepath}")
+            # plt.savefig(savepath)
+            # plt.show()
+
+
+            ### Do sing_val_cutoff plot:
+            # fig = plt.figure(figsize=(10, 8))
+            plt.sca(axes[2])
+
+            cutoffs = [3E-2, 1E-2, 3E-3, 1E-3, 3E-4, 1E-4]
+
+            cutoff_df_list = []
+            for cutoff in cutoffs:
+                cutoff_df = measure_df[(measure_df['value'] < cutoff) & (measure_df['sum'].isin([False]))]  # Use only the sigma values greater than 99% (cumulative)
+                cutoff_df = cutoff_df.loc[cutoff_df.groupby(['epoch', 'layer_name'])['sigma_idx'].idxmin()]  # For each unique combination ['epoch', 'layer_name'], get the value with the lowest sigma value
+                cutoff_df.insert(len(cutoff_df.columns), 'cutoff', cutoff)
+                cutoff_df_list.append(cutoff_df)
+
+            df = pd.concat(cutoff_df_list, ignore_index=True)
+
+            selection = df['epoch'] == df['epoch'].max()
+            # selection = (df['epoch'] != -1)
+            # selection &= df['epoch'].isin([10, 50, 100, 200, 300])
+            # selection &= (df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection &= (df['layer_name'] != 'model')
+
+            if 'hue' in plot_config.keys() and len(df[selection][plot_config['x']].unique()) == 1:
+                plot_config['x'] = plot_config['hue']
+                del plot_config['hue']
+
+            # Do the plotting
+            sns.lineplot(data=df[selection], y='sigma_idx', x=plot_config['x'], hue='cutoff', palette='tab10',
+                         )  # **plot_config)
+            plt.title(f"Cutoff rank over {plot_config['x']} after {df['epoch'].max()} epochs for \n{os.path.split(savedir.base)[-1]}")
+
+            plt.ylabel(r'Sigmas larger than cutoff: $\min_i$ s.t. $(\frac{\sigma_i}{\sum_i \sigma_i} < $ cutoff)')  # == $\sum_{i}\sigma_i \; / \max{\sigma_i}$
+            plt.yscale('log')
+
+            plt.xticks(rotation=90)
+
             plt.tight_layout()
-            savepath = os.path.join(savedir.plots, measure + "_ApproxRank" + FILETYPE)
+            # savepath = os.path.join(savedir.plots, measure + "_CutoffRank" + FILETYPE)
+            savepath = os.path.join(savedir.plots, measure + "_Ranks" + FILETYPE)
             print(f"saving to {savepath}")
             plt.savefig(savepath)
+            # plt.savefig(f'../tmp/{os.path.split(savedir.base)[-1]}_{measure}_ranks' + FILETYPE)
             plt.show()
+
+
+
+
 
 
 
@@ -222,7 +342,11 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
             else:
                 fig = plt.figure(figsize=(10, 8))
 
-            measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            try:
+                measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+            except FileNotFoundError as e:
+                warnings.warn(str(e))
+                continue
 
             # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
             # selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300]) & (measure_df['layer_name'] != 'model')
