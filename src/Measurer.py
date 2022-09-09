@@ -244,13 +244,14 @@ class ActivationCovSVs(Measurer):
         wrapped_model.base_model.eval()
         device = next(wrapped_model.parameters()).device
 
-        # class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
-        # global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
         classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
 
         # Calculate for each layer and each class
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  ActivationCovSVs.', leave=False):
+            total_within_sigmas = None
             for class_idx, class_cov_within in enumerate(classwise_cov_within[layer_name]):
                 # U_w, S_w, Vh_w = torch.linalg.svd(class_cov_within.detach())  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
                 S_w = torch.linalg.svdvals(class_cov_within.detach())
@@ -258,8 +259,28 @@ class ActivationCovSVs(Measurer):
                 rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
                 rel_sigmas = S_w / np.sum(S_w)
                 for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
-                    out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'sum': False})
-                    out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'sum': True})
+                    out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'type': 'within_single', 'sum': False})
+                    out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'type': 'within_single', 'sum': True})
+
+                if total_within_sigmas is None:
+                    total_within_sigmas = torch.zeros_like(rel_sigmas_sum).cpu()
+                total_within_sigmas += rel_sigmas_sum.to_cpu() * class_num_samples[class_idx].cpu()
+
+            rel_sigmas_sum = np.cumsum(total_within_sigmas) / np.sum(total_within_sigmas)
+            rel_sigmas = total_within_sigmas / np.sum(total_within_sigmas)
+            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+                out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'within_sum', 'sum': False})
+                out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'within_sum', 'sum': True})
+
+            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).cpu()
+            layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means).cpu() / dataset.num_classes
+
+            S_w = torch.linalg.svdvals(layer_cov_between)
+            rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
+            rel_sigmas = total_within_sigmas / np.sum(S_w)
+            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+                out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': False})
+                out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': True})
 
         return pd.DataFrame(out)
 
