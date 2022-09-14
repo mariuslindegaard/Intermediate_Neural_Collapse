@@ -181,17 +181,17 @@ class NC1Measure(Measurer):
         # Calculate NC1-condition and add to output
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(cov_within.keys(), desc='  NC1, calc. metric', leave=False):
-            rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_cov_within = cov_within[layer_name].to('cpu')
+            S_within = torch.mean(layer_cov_within, axis=0).cpu().numpy()
 
+            rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
-            S_within = layer_cov_within.cpu().numpy()
             S_between = layer_cov_between.cpu().numpy()
             eigvecs, eigvals, _ = scipy.linalg.svd(S_between)
             inv_eigvals = eigvals ** -1
             inv_eigvals[dataset.num_classes-1:] = 0  # Only use the first C-1 eigvals, since the relative between-class covariance is rank C-1
             inv_S_between = eigvecs @ np.diag(inv_eigvals) @ eigvecs.T  # Will get divide by 0 for first epochs, it is fine
-            # inv_S_between, iSb_rank = scipy.linalg.pinv(S_between, return_rank=True)
+
             nc1_value = np.sum(np.trace(S_within @ inv_S_between))  # \Sigma_w @ \Sigma_b^-1
             out.append({'value': nc1_value, 'layer_name': layer_name})
 
@@ -281,6 +281,8 @@ class ActivationCovSVs(Measurer):
             for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
                 out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': False})
                 out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': True})
+
+        # TODO(marius): Bugtest this!
 
         return pd.DataFrame(out)
 
