@@ -316,11 +316,6 @@ def plot_approx_rank(base_dir, run_config_params):
             plt.show()
 
 
-
-
-
-
-
 def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
     """The base plotting function to copy and modify."""
 
@@ -348,10 +343,11 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
                 warnings.warn(str(e))
                 continue
 
-            # selection = measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
-            # selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300]) & (measure_df['layer_name'] != 'model')
-            selection = measure_df['epoch'].isin([10, 50, 100, 200, 300])
-            # selection = (measure_df['epoch'] != -1)  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection = measure_df['epoch'] != -1
+            # selection &= measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
+            # selection &= measure_df['epoch'].isin([10, 20, 50, 100, 200, 300]) & (measure_df['layer_name'] != 'model')
+            # selection &= measure_df['epoch'].isin([10, 50, 100, 200, 300])
+            # selection &= (measure_df['epoch'] != -1)  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
             selection &= (measure_df['layer_name'] != 'model')
 
             if measure == 'SingularValues':  # TODO(marius): Make less hacky
@@ -538,13 +534,14 @@ def main(logs_parent_dir: str):
         # Model={'model-name': 'resnet18'},
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
-        # Logging={'save-dir': 'logs/mlp_wide_nobias_nobn_mnist'},
+        # Logging={'save-dir': 'logs/mlp_sharedweight_xwide_nobn_mnist'},
+        Logging={'save-dir': 'logs/debug'}
         # Measurements={},
     )
     plot_approx_rank(logs_parent_dir, run_config_params)
-    # plot_runs_svds(logs_parent_dir, run_config_params, selected_epochs=[300])
-    # plot_runs(logs_parent_dir, run_config_params)
-    # plot_runs_rel_trace(logs_parent_dir, run_config_params)
+    plot_runs_svds(logs_parent_dir, run_config_params, selected_epochs=[300])
+    plot_runs(logs_parent_dir, run_config_params)
+    plot_runs_rel_trace(logs_parent_dir, run_config_params)
     # for i in [0, 1, 3, 5, 10, 20, 30, 50, 80, 100, 150, 200, 250, 300]:
     #     plot_runs_rel_trace(logs_parent_dir, run_config_params, epoch=i)
 
