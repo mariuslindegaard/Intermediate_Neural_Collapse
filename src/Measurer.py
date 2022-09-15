@@ -426,7 +426,7 @@ class AngleBetweenSubspaces(Measurer):
         return pd.DataFrame(out)
 
 
-class SharedMeasurementVarsCache:
+class SharedMeasurementVarsCache(Measurer):
     """Shared cache of often-used computations used for measurements.
 
     E.g. class means. This allows them to be calculated only once per epoch!
@@ -642,6 +642,15 @@ def _test_cache():
     cache.reset()
     # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
 
+
+ALL_MEASURES = [AccuracyMeasure,
+                TraceMeasure,
+                CDNVMeasure,
+                NC1Measure,
+                SingularValues,
+                ActivationCovSVs,
+                MLPSVDMeasure,
+                AngleBetweenSubspaces]
 
 if __name__ == '__main__':
     _test_cache()
