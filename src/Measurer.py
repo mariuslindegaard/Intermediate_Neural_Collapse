@@ -377,6 +377,55 @@ class MLPSVDMeasure(Measurer):
         return pd.DataFrame(out)
 
 
+class AngleBetweenSubspaces(Measurer):
+    """Measure angle between subspaces of first 10 singular vectors of weights and class means"""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        # global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+        # Calculate NC1-condition and add to output
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(class_means.keys(), desc='  AngleBet.Subspc., calculating', leave=False):
+            if not layer_name.endswith('fc'):
+                continue
+
+            # layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+            layer_class_means = class_means[layer_name]
+
+            # Get the model weights
+            fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
+            try:
+                weights = fc_layer.weight
+            except AttributeError as e:
+                warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                continue
+            weights = weights.detach().to('cpu').numpy()
+
+            U_w, S_w, Vh_w = scipy.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
+            U_m, S_m, Vh_m = scipy.linalg.svd(layer_class_means.T)  # l_c_m.T is (d x C)
+
+            # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
+            S = scipy.linalg.svdvals(Vh_w @ U_m)
+
+            rel_sigmas_sum = np.cumsum(S) / np.sum(S)
+            rel_sigmas = S / np.sum(S)
+            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+                out.append({'value': rel_sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
+                out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
+
+        return pd.DataFrame(out)
+
+
 class SharedMeasurementVarsCache:
     """Shared cache of often-used computations used for measurements.
 
