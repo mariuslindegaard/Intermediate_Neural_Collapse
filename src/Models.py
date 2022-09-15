@@ -4,6 +4,7 @@ import torchvision.models
 
 from typing import Dict, Hashable, Tuple, Union, List
 from collections import OrderedDict
+import warnings
 
 from DatasetWrapper import DatasetWrapper
 import utils
@@ -71,6 +72,66 @@ class MLP(nn.Module):
         return out
 
 
+class SharedWeightMLP(MLP):
+    def __init__(self, input_size: int, hidden_layers_widths: List[int], output_size: int,
+                 use_bias: bool = True, use_softmax: bool = False, use_batch_norm: bool = True):
+        super(MLP, self).__init__()
+
+
+        layers = OrderedDict()
+
+        layers['flatten'] = nn.Flatten()
+
+        if len(hidden_layers_widths) == 0:
+            layers['fc'] = nn.Linear(in_features=input_size, out_features=output_size, bias=use_bias)
+        else:
+            width = hidden_layers_widths[0]
+            if width > input_size:
+                warnings.warn(f"Width of NN ({width}) greater than the size of the input data ({input_size})."
+                              f"Padding input to proper width.")
+                layers['padding'] = torch.nn.ConstantPad1d(padding=(0, width-input_size), value=0)
+            elif width < input_size:
+                warnings.warn(f"Width of NN ({width}) SMALLER than the size of the input data ({input_size})."
+                              f"Project input randomly to proper width.")
+                layers['projection'] = nn.Linear(in_features=input_size, out_features=width, bias=False)
+                layers['projection'].requires_grad = False
+
+            assert not sum(map(lambda w: w != width, hidden_layers_widths)),\
+                f"Not all hidden layers have the same width! Got {hidden_layers_widths}..."
+            layers['block0'] = _MLPBlock(input_dim=width, output_dim=width,
+                                         use_bias=use_bias, use_batch_norm=use_batch_norm)
+            for idx in range(1, len(hidden_layers_widths)):
+                block = _MLPBlock(input_dim=width, output_dim=width, use_bias=use_bias, use_batch_norm=use_batch_norm)
+                # Set weights to be the same
+                block.fc.weight = layers['block0'].fc.weight
+                if use_bias:
+                    block.fc.bias = layers['block0'].fc.bias
+                if use_batch_norm:
+                    block.bn.weight = layers['block0'].bn.weight
+                    block.bn.bias = layers['block0'].bn.bias
+
+                layers[f'block{idx+1}'] = block
+
+            # Make the classification layer a simplex ETF
+            layers['ETF'] = nn.Linear(in_features=width, out_features=output_size, bias=False)
+            shape, c = layers['ETF'].weight.shape, output_size
+            layers['ETF'].weight = torch.nn.Parameter(
+                (c/(c-1))**(1/2) * (torch.eye(*shape) - (1/c) * torch.ones(*shape)),
+                requires_grad=False)
+
+        if use_softmax:
+            layers['softmax'] = nn.Softmax()
+
+        self.model = nn.Sequential(
+            layers
+        )
+
+    def forward(self, x):
+        out = self.model(x)
+        return out
+
+
+
 class _MLPBlock(nn.Module):
     def __init__(self, input_dim: int, output_dim: int, use_bias: bool = None, use_batch_norm: bool = False):
         super(_MLPBlock, self).__init__()
@@ -128,7 +189,8 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         hidden_layer_sizes = sizes[sizes_match]
 
         # Construct MLP
-        base_model = MLP(
+        mlptype = MLP if '_sharedweight' not in model_name.lower() else SharedWeightMLP
+        base_model = mlptype(
             input_size=datasetwrapper.input_batch_shape[1:].numel(),
             hidden_layers_widths=hidden_layer_sizes,
             output_size=datasetwrapper.num_classes,
