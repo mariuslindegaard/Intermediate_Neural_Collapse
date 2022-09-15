@@ -254,7 +254,7 @@ class ActivationCovSVs(Measurer):
             total_within_sigmas = None
             for class_idx, class_cov_within in enumerate(classwise_cov_within[layer_name]):
                 # U_w, S_w, Vh_w = torch.linalg.svd(class_cov_within.detach())  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
-                S_w = torch.linalg.svdvals(class_cov_within.detach())
+                S_w = torch.linalg.svdvals(class_cov_within.detach()).to('cpu').numpy()
 
                 rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
                 rel_sigmas = S_w / np.sum(S_w)
@@ -263,8 +263,8 @@ class ActivationCovSVs(Measurer):
                     out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'type': 'within_single', 'sum': True})
 
                 if total_within_sigmas is None:
-                    total_within_sigmas = torch.zeros_like(rel_sigmas_sum).cpu()
-                total_within_sigmas += rel_sigmas_sum.to_cpu() * class_num_samples[class_idx].cpu()
+                    total_within_sigmas = np.zeros_like(rel_sigmas_sum)
+                total_within_sigmas += rel_sigmas_sum * class_num_samples[class_idx].cpu().numpy()
 
             rel_sigmas_sum = np.cumsum(total_within_sigmas) / np.sum(total_within_sigmas)
             rel_sigmas = total_within_sigmas / np.sum(total_within_sigmas)
@@ -275,14 +275,12 @@ class ActivationCovSVs(Measurer):
             layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).cpu()
             layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means).cpu() / dataset.num_classes
 
-            S_w = torch.linalg.svdvals(layer_cov_between)
+            S_w = torch.linalg.svdvals(layer_cov_between).to('cpu').numpy()
             rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
             rel_sigmas = total_within_sigmas / np.sum(S_w)
             for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
                 out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': False})
                 out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': True})
-
-        # TODO(marius): Bugtest this!
 
         return pd.DataFrame(out)
 
@@ -409,19 +407,19 @@ class AngleBetweenSubspaces(Measurer):
             except AttributeError as e:
                 warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
                 continue
-            weights = weights.detach().to('cpu').numpy()
+            weights = weights.detach()
 
-            U_w, S_w, Vh_w = scipy.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
-            U_m, S_m, Vh_m = scipy.linalg.svd(layer_class_means.T)  # l_c_m.T is (d x C)
+            U_w, S_w, Vh_w = torch.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
+            U_m, S_m, Vh_m = torch.linalg.svd(layer_class_means.T)  # l_c_m.T is (d x C)
 
             # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
-            S = scipy.linalg.svdvals(Vh_w @ U_m)
+            S = torch.linalg.svdvals(Vh_w[:dataset.num_classes] @ U_m[:, :dataset.num_classes]).to('cpu').numpy()
 
-            rel_sigmas_sum = np.cumsum(S) / np.sum(S)
-            rel_sigmas = S / np.sum(S)
-            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
-                out.append({'value': rel_sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
-                out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
+
+            S_sum = np.cumsum(S)
+            for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
+                out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
+                out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
 
         return pd.DataFrame(out)
 
