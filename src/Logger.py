@@ -25,15 +25,18 @@ class SaveDirs:
         try:
             root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
         except (OSError, subprocess.CalledProcessError) as e:  # TODO(marius): Make exception catching less general
-            warnings.warn("Finding git root directory failed with the following error message:\n"+str(e))
+            # warnings.warn("Finding git root directory failed with the following error message:\n"+str(e))
+            warnings.warn('Finding git root directory failed')
             root_dir = os.path.abspath(os.path.join(
                 os.path.dirname(__file__), os.pardir
             ))
-            warnings.warn(f"Using '{root_dir}' as root directory")
+            warnings.warn(f'Using "{root_dir}" as root directory')
+
+        self.root_dir = root_dir
 
         # Set base directory
         self._base = os.path.join(
-            root_dir,
+            self.root_dir,
             dirname,
         )
 
@@ -85,18 +88,28 @@ class SaveDirs:
         return path
 
     @property
-    def models(self):
+    def models(self) -> str:
         path = os.path.join(self.base, 'models')
         if not os.path.exists(path):
             os.makedirs(path)
         return path
 
     @property
-    def plots(self):
+    def plots(self) -> str:
         path = os.path.join(self.base, 'plots')
         if not os.path.exists(path):
             os.makedirs(path)
         return path
+
+    @property
+    def config(self) -> str:
+        path = os.path.join(self.base, 'config.yaml')
+        # if not os.path.exists(path):
+        #     raise FileNotFoundError('Config file does not yet exist!')
+        return path
+
+    def force_new_base_path(self, new_path: str) -> None:
+        self._base = new_path
 
 
 class Logger:
@@ -231,7 +244,11 @@ class Logger:
                 else:
                     warnings.warn(f"Config file at {target_path} exists and differs from input config at {self.config_path}!")
 
-        shutil.copy(self.config_path, target_path, follow_symlinks=True)
+        try:
+            shutil.copy(self.config_path, target_path, follow_symlinks=True)
+        except shutil.SameFileError as e:
+            pass
+
         # Set latest run to this run
         self.force_symlink(
             os.path.split(self.save_dirs.base)[1],  # Use relative path

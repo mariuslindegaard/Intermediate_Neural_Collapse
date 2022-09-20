@@ -221,7 +221,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         raise NotImplementedError(f"Model type not supported: {model_name}")
 
     # Set hooked output layers
-    out_layers = model_cfg['embedding_layers']
+    out_layers = model_cfg['embedding-layers']
     print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers)
     print("Tracking layers: ", end='\n\t')
