@@ -424,6 +424,76 @@ class AngleBetweenSubspaces(Measurer):
         return pd.DataFrame(out)
 
 
+class ETFAngle(Measurer):
+    """Measure angle class means plus 1/(C-1) (cos(angle)+1/(C-1) -> 0 in NC2)"""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+        # Calculate NC1-condition and add to output
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(class_means.keys(), desc='  ETFAngle, calculating', leave=False):
+
+            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+            # layer_class_means = class_means[layer_name]
+
+            normed_layer_rel_class_means = torch.nn.functional.normalize(layer_rel_class_means, dim=1)  # Class means in rows
+
+            class_means_cos_angles = normed_layer_rel_class_means @ normed_layer_rel_class_means.T
+
+            for l_class_idx in range(dataset.num_classes):
+                for r_class_idx in range(dataset.num_classes):
+                    if l_class_idx == r_class_idx:
+                        continue
+                    out.append({'value': class_means_cos_angles[l_class_idx][r_class_idx].item(),
+                                'layer_name': layer_name,
+                                'l_ord': l_class_idx, 'r_ord': r_class_idx})
+
+        return pd.DataFrame(out)
+
+
+class ETFNorm(Measurer):
+    """Measure angle class means plus 1/(C-1) (cos(angle)+1/(C-1) -> 0 in NC2)"""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper,
+                shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+        # Calculate NC1-condition and add to output
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(class_means.keys(), desc='  ETFNorm, calculating', leave=False):
+
+            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+            # layer_class_means = class_means[layer_name]
+
+            layer_rel_class_means_norms = torch.linalg.norm(layer_rel_class_means, dim=1)  # Class means in rows
+
+            for class_idx, rel_class_mean_norm in enumerate(layer_rel_class_means_norms):
+                out.append({'value': rel_class_mean_norm.item(), 'layer_name': layer_name, 'class_idx': class_idx})
+
+        return pd.DataFrame(out)
+
+
 class SharedMeasurementVarsCache(Measurer):
     """Shared cache of often-used computations used for measurements.
 
@@ -648,7 +718,8 @@ ALL_MEASURES = ['AccuracyMeasure',
                 'SingularValues',
                 'ActivationCovSVs',
                 'MLPSVDMeasure',
-                'AngleBetweenSubspaces']
+                'AngleBetweenSubspaces'
+                'ETFAngle', 'ETFNorm']
 
 if __name__ == '__main__':
     _test_cache()
