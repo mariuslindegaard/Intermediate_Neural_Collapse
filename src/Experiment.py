@@ -46,11 +46,9 @@ class Experiment:
         self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)
 
         # Get all relevant measures
-        if measurements_cfg['measures'] is True:
-            self.measures = {type(measure()): measure() for measure in Measurer.ALL_MEASURES}
-        else:
-            self.measures = {measurement_str: getattr(Measurer, measurement_str)()
-                             for measurement_str in measurements_cfg['measures']}
+        measure_strings = measurements_cfg['measures'] if measurements_cfg['measures'] is not True else Measurer.ALL_MEASURES
+        self.measures = {measurement_str: getattr(Measurer, measurement_str)()
+                         for measurement_str in measure_strings}
 
         # Copy config to correct file. Do last so any initalization errors get thrown first.
         self.logger.copy_config_to_dir()

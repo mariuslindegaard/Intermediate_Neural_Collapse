@@ -641,14 +641,14 @@ def _test_cache():
     # print(cache.get_test_class_means_nums(exp.wrapped_model, exp.dataset)['layer3'].size())
 
 
-ALL_MEASURES = [AccuracyMeasure,
-                TraceMeasure,
-                CDNVMeasure,
-                NC1Measure,
-                SingularValues,
-                ActivationCovSVs,
-                MLPSVDMeasure,
-                AngleBetweenSubspaces]
+ALL_MEASURES = ['AccuracyMeasure',
+                'TraceMeasure',
+                'CDNVMeasure',
+                'NC1Measure',
+                'SingularValues',
+                'ActivationCovSVs',
+                'MLPSVDMeasure',
+                'AngleBetweenSubspaces']
 
 if __name__ == '__main__':
     _test_cache()
