@@ -415,8 +415,8 @@ class AngleBetweenSubspaces(Measurer):
             # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
             S = torch.linalg.svdvals(Vh_w[:dataset.num_classes] @ U_m[:, :dataset.num_classes]).to('cpu').numpy()
 
+            S_sum = np.cumsum(S) / dataset.num_classes
 
-            S_sum = np.cumsum(S)
             for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
                 out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
                 out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})

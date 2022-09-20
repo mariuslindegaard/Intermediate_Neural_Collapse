@@ -324,6 +324,7 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
         'TraceMeasure': dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within']),
         'CDNVMeasure': dict(x='layer_name', hue='epoch'),
         'NC1Measure': dict(x='layer_name', hue='epoch'),
+        'AngleBetweenSubspaces': dict(x='layer_name', hue='epoch')  # hue='sigma_idx')
     }
 
     for measure, plot_config in relevant_measures.items():
@@ -345,9 +346,7 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
 
             selection = measure_df['epoch'] != -1
             # selection &= measure_df['epoch'].isin([0, 10, 20, 40, 70, 100, 160, 200])
-            # selection &= measure_df['epoch'].isin([10, 20, 50, 100, 200, 300]) & (measure_df['layer_name'] != 'model')
-            # selection &= measure_df['epoch'].isin([10, 50, 100, 200, 300])
-            # selection &= (measure_df['epoch'] != -1)  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+            selection &= measure_df['epoch'].isin([10, 20, 50, 100, 200, 300])  # & (measure_df['layer_name'] != 'model') selection &= measure_df['epoch'].isin([10, 50, 100, 200, 300])
             selection &= (measure_df['layer_name'] != 'model')
 
             if measure == 'SingularValues':  # TODO(marius): Make less hacky
@@ -356,6 +355,14 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
                 selection &= measure_df['sum'].isin([False])
                 selection &= measure_df['sigma_idx'].isin([i for i in range(20)])
                 selection &= measure_df['epoch'].isin([epoch])
+            elif measure == 'AngleBetweenSubspaces':
+                # selection &= (measure_df['epoch'] == 300)  # & (measure_df['layer_name'].isin(['conv1', 'bn1', *[f'layer{i//2}.{i%2}' for i in range(2, 10)], 'avgpool', 'fc']))
+                selection = measure_df['epoch'] != -1
+                selection &= (measure_df['layer_name'] != 'model')
+                selection &= measure_df['sum'].isin([True])
+                selection &= measure_df['sigma_idx'].isin([9])
+                selection &= measure_df['epoch'].isin([0, 1, 50, 100, 150, 200, 250, 300])
+                measure_df['value'] /= 10
 
             # Plot absolute traces
             ## If there is a hue-parameter and the x-axis has only one entry, replace the x-axis with the hue-parameter
@@ -387,6 +394,9 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
                 plt.yscale('log')
                 plt.ylabel(r'$\sum_{i=1}^{m}\sigma_i / \sum_{i}\sigma_i$')
                 plt.title(f"Singular values as proportion of trace norm: Epoch {epoch}\n{os.path.split(savedir.base)[-1]}")
+            elif measure == 'AngleBetweenSubspaces':
+                plt.yscale('linear')
+                plt.ylim([None, 1.04])
 
             plt.xticks(rotation=90)
 
@@ -397,6 +407,7 @@ def plot_runs_rel_trace(base_dir, run_config_params, epoch=-1):
             plt.show()
 
 
+"""
 def abstract_plot():
 
     sns.set_theme(style='darkgrid')
@@ -525,7 +536,7 @@ def abstract_plot():
     plt.show()
 
     pass
-
+"""
 
 def main(logs_parent_dir: str):
     """Run some standard plotting on the measurements. Prone to failure!!!"""
@@ -535,11 +546,11 @@ def main(logs_parent_dir: str):
         # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
         # Logging={'save-dir': 'logs/mlp_sharedweight_xwide_nobn_mnist'},
-        Logging={'save-dir': 'logs/debug'}
+        Logging={'save-dir': 'logs/tmp/mlp_mnist'}
         # Measurements={},
     )
     plot_approx_rank(logs_parent_dir, run_config_params)
-    plot_runs_svds(logs_parent_dir, run_config_params, selected_epochs=[300])
+    # plot_runs_svds(logs_parent_dir, run_config_params, selected_epochs=[300])
     plot_runs(logs_parent_dir, run_config_params)
     plot_runs_rel_trace(logs_parent_dir, run_config_params)
     # for i in [0, 1, 3, 5, 10, 20, 30, 50, 80, 100, 150, 200, 250, 300]:
