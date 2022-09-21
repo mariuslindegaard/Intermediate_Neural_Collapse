@@ -143,13 +143,13 @@ def write_to_bash_script(idx: int, base_savedir: Logger.SaveDirs, run_savedir: L
     :param run_savedir:
     :return: Path to script
     """
-    script_path = os.path.join(base_savedir.base, 'slurm/jobs', f'{idx}.sh')
+    script_path = os.path.join(base_savedir.base, '__slurm/jobs', f'{idx}.sh')
     script_content = _JOB_SCRIPT_STUMP.format(
         os.path.join(base_savedir.root_dir, 'src/main.py'),
         run_savedir.config
     )
 
-    os.makedirs(os.path.join(base_savedir.base, 'slurm/jobs'), exist_ok=True)
+    os.makedirs(os.path.join(base_savedir.base, '__slurm/jobs'), exist_ok=True)
     with open(script_path, 'w+') as script_f:
         script_f.write(script_content)
 
@@ -164,10 +164,10 @@ def run_experiments(num_scripts: int, base_savedir: Logger.SaveDirs):
     :return:
     """
     # Create sbatch file
-    sbatch_script_path = os.path.join(base_savedir.base, 'slurm/execute_array.sh')
+    sbatch_script_path = os.path.join(base_savedir.base, '__slurm/execute_array.sh')
     sbatch_script_content = _SBATCH_SCRIPT_STUMP
 
-    os.makedirs(os.path.join(base_savedir.base, 'slurm'), exist_ok=True)
+    os.makedirs(os.path.join(base_savedir.base, '__slurm'), exist_ok=True)
     with open(sbatch_script_path, 'w+') as script_f:
         script_f.write(sbatch_script_content)
     os.chmod(sbatch_script_path, 777)
@@ -175,17 +175,17 @@ def run_experiments(num_scripts: int, base_savedir: Logger.SaveDirs):
     # Execute sbatch file
     sbatch_script_exec_command = _SBATCH_SCRIPT_EXECUTE_COMMAND.format(
         start_idx=0, end_idx=num_scripts-1,
-        configs_path_dir=os.path.join(base_savedir.base, 'slurm/jobs'),
+        configs_path_dir=os.path.join(base_savedir.base, '__slurm/jobs'),
         sbatch_file_path=sbatch_script_path
     )
     # Create symlink for datasets datasets
-    os.symlink(os.path.join(base_savedir.root_dir, 'datasets'), os.path.join(base_savedir.base, 'slurm/jobs/datasets'))
+    os.symlink(os.path.join(base_savedir.root_dir, 'datasets'), os.path.join(base_savedir.base, '__slurm/jobs/datasets'))
     print("Executing", sbatch_script_exec_command)
     try:
         process = subprocess.run(
             sbatch_script_exec_command,
             shell=True, check=True,
-            cwd=os.path.join(base_savedir.base, 'slurm'),
+            cwd=os.path.join(base_savedir.base, '__slurm'),
             capture_output=True
         )
     except subprocess.CalledProcessError as e:
