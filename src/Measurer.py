@@ -182,7 +182,7 @@ class NC1Measure(Measurer):
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(cov_within.keys(), desc='  NC1, calc. metric', leave=False):
             layer_cov_within = cov_within[layer_name].to('cpu')
-            S_within = torch.mean(layer_cov_within, axis=0).cpu().numpy()
+            S_within = torch.mean(layer_cov_within, dim=0).cpu().numpy()
 
             rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
@@ -306,9 +306,9 @@ class MLPSVDMeasure(Measurer):
                 continue
 
             # Get class means and covariance
-            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
-            layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
 
             # Get the model weights
             fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
@@ -494,7 +494,7 @@ class ETFNorm(Measurer):
         return pd.DataFrame(out)
 
 
-class SharedMeasurementVarsCache(Measurer):
+class SharedMeasurementVarsCache:
     """Shared cache of often-used computations used for measurements.
 
     E.g. class means. This allows them to be calculated only once per epoch!
