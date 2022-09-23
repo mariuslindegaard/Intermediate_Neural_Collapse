@@ -34,7 +34,9 @@ class DatasetWrapper:
             'cifar10': DatasetWrapper.cifar10,
             'mnist': DatasetWrapper.mnist,
             'cifar100': DatasetWrapper.cifar100,
-            'imagenet': DatasetWrapper.imagenet
+            'imagenet': DatasetWrapper.imagenet,
+            'stl10': DatasetWrapper.stl10,
+            'svhn': DatasetWrapper.svhn
         }
 
         if not self.data_id.lower() in id_mapping.keys():
@@ -51,14 +53,64 @@ class DatasetWrapper:
         self.input_batch_shape = tmp_inputs.size()
         self.target_batch_shape = tmp_targets.size()
 
+        # self._check_mean_std()
+
+    def svhn(self, data_cfg: Optional[Dict] = None, download=True):
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
+        normalize = transforms.Normalize(mean=[0.4377, 0.4438, 0.4728],
+                                         std=[0.1980, 0.2010, 0.1970])
+
+        test_tx = transforms.Compose([
+            transforms.ToTensor(),
+            normalize
+        ])
+        if do_augmentation:
+            raise NotImplementedError()
+        else:
+            train_tx = test_tx
+
+        train_data = datasets.SVHN(root=self.data_download_dir, split='train', download=download, transform=train_tx)
+        test_data = datasets.SVHN(root=self.data_download_dir, split='test', download=download, transform=test_tx)
+        self.is_one_hot = False
+        self.num_classes = 10
+
+        return train_data, test_data
+
+    def stl10(self, data_cfg: Optional[Dict] = None, download=True):
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
+        # normalize = transforms.Normalize(mean=[-3*0.1489, -3*0.1466, -3*0.1355],
+        #                                  std=[1/x for x in [0.2487, 0.2548, 0.2475]])
+        normalize = transforms.Normalize(mean=[0.4467, 0.4398, 0.4066],
+                                         std=[0.2603, 0.2566, 0.2713])
+
+        test_tx = transforms.Compose([
+            transforms.ToTensor(),
+            normalize
+        ])
+        if do_augmentation:
+            raise NotImplementedError()
+        else:
+            train_tx = test_tx
+
+        train_data = datasets.STL10(root=self.data_download_dir, split='train', download=download, transform=train_tx)
+        test_data = datasets.STL10(root=self.data_download_dir, split='test', download=download, transform=test_tx)
+        self.is_one_hot = False
+        self.num_classes = 10
+
+        return train_data, test_data
+
     def cifar100(self, data_cfg: Optional[Dict] = None, download=True):
         """Cifar100 dataset"""
         train_tx, test_tx = self._cifar_transforms(data_cfg)
 
-        train_data = datasets.CIFAR100(root=self.data_download_dir, train=True, download=download,
-                                       transform=train_tx)
-        test_data = datasets.CIFAR100(root=self.data_download_dir, train=False, download=download,
-                                      transform=test_tx)
+        train_data = datasets.CIFAR100(root=self.data_download_dir, train=True, download=download, transform=train_tx)
+        test_data = datasets.CIFAR100(root=self.data_download_dir, train=False, download=download, transform=test_tx)
         self.is_one_hot = False
         self.num_classes = 100
         # self.input_shape = (32, 32, 3)
@@ -69,10 +121,8 @@ class DatasetWrapper:
         """Cifar10 dataset"""
         train_tx, test_tx = self._cifar_transforms(data_cfg)
 
-        train_data = datasets.CIFAR10(root=self.data_download_dir, train=True, download=download,
-                                      transform=train_tx)
-        test_data = datasets.CIFAR10(root=self.data_download_dir, train=False, download=download,
-                                     transform=test_tx)
+        train_data = datasets.CIFAR10(root=self.data_download_dir, train=True, download=download, transform=train_tx)
+        test_data = datasets.CIFAR10(root=self.data_download_dir, train=False, download=download, transform=test_tx)
         self.is_one_hot = False
         self.num_classes = 10
         # self.input_shape = (32, 32, 3)
@@ -129,10 +179,8 @@ class DatasetWrapper:
         else:
             train_tx = test_tx
 
-        train_data = datasets.ImageNet(root=self.data_download_dir, train=True, download=download,
-                                       transform=train_tx)
-        test_data = datasets.ImageNet(root=self.data_download_dir, train=False, download=download,
-                                      transform=test_tx)
+        train_data = datasets.ImageNet(root=self.data_download_dir, train=True, download=download, transform=train_tx)
+        test_data = datasets.ImageNet(root=self.data_download_dir, train=False, download=download, transform=test_tx)
         self.is_one_hot = False
         self.num_classes = 1000
 
@@ -148,16 +196,30 @@ class DatasetWrapper:
         tx = transforms.Compose([transforms.Pad((padded_im_size - im_size) // 2), transforms.ToTensor(),
                                  transforms.Normalize(mean=[0.1307], std=[0.3081])])
 
-        train_data = datasets.MNIST(root=self.data_download_dir, train=True, download=download,
-                                    transform=tx)
-        test_data = datasets.MNIST(root=self.data_download_dir, train=False, download=download,
-                                   transform=tx)
+        train_data = datasets.MNIST(root=self.data_download_dir, train=True, download=download, transform=tx)
+        test_data = datasets.MNIST(root=self.data_download_dir, train=False, download=download, transform=tx)
 
         self.num_classes = 10
         self.is_one_hot = False
         # self.input_shape = (32, 32, 1)
 
         return train_data, test_data
+
+    def _check_mean_std(self):
+        """Check mean and std of the current dataset"""
+        import tqdm
+        tot = torch.zeros((3,))
+        tot_sq = torch.zeros_like(tot)
+        i = 0
+        for batch, (inputs, targets) in enumerate(tqdm.tqdm(self.train_loader)):
+            tot += torch.sum(inputs, dim=(0, 2, 3))
+            tot_sq += torch.sum(inputs**2, dim=(0, 2, 3))
+            i += inputs.shape.numel() // 3
+
+        mean = tot/i
+        std = torch.sqrt(tot_sq/i - mean**2)
+        print(mean, std)
+        return mean, std
 
 
 def load_dataset_from_dict(data_cfg: dict, *args, **kwargs) -> DatasetWrapper:
