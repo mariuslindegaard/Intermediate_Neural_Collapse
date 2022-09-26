@@ -182,7 +182,7 @@ class NC1Measure(Measurer):
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(cov_within.keys(), desc='  NC1, calc. metric', leave=False):
             layer_cov_within = cov_within[layer_name].to('cpu')
-            S_within = torch.mean(layer_cov_within, dim=0).cpu().numpy()
+            S_within = torch.mean(layer_cov_within, axis=0).cpu().numpy()
 
             rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_cov_between = torch.matmul(rel_class_means.T, rel_class_means) / dataset.num_classes  # TODO(marius): Verify calculation
@@ -306,7 +306,7 @@ class MLPSVDMeasure(Measurer):
                 continue
 
             # Get class means and covariance
-            # layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
             layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
             # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
 
@@ -718,8 +718,8 @@ ALL_MEASURES = ['AccuracyMeasure',
                 'SingularValues',
                 'ActivationCovSVs',
                 'MLPSVDMeasure',
-                'AngleBetweenSubspaces'
-                'ETFAngle', 'ETFNorm']
+                'AngleBetweenSubspaces',
+                'ETFAngle', 'ETFNorm',]
 
 if __name__ == '__main__':
     _test_cache()
