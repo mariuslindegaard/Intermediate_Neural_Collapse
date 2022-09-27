@@ -494,12 +494,13 @@ class NCC(Measurer):
                 embeddings: Dict[str, torch.Tensor]
                 preds, embeddings = wrapped_model(inputs)
                 one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
-                # index_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
-                # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
 
+                # Calculate accuracy of nearest class mean classifier in each layer embedding
                 for layer_name, activations in embeddings.items():
                     layer_class_means = train_class_means[layer_name].flatten(start_dim=1).to(device).unsqueeze(0).detach()
-                    dists = torch.cdist(activations.flatten(start_dim=1).detach(), layer_class_means).squeeze()
+                    activations = activations.flatten(start_dim=1).detach()
+
+                    dists = torch.cdist(activations, layer_class_means).squeeze()
                     one_hot_ncc_preds = F.one_hot(dists.argmin(dim=-1))
                     one_hot_correct = one_hot_targets * one_hot_ncc_preds
 
@@ -749,6 +750,7 @@ FAST_MEASURES = [
     # 'MLPSVD',
     'AngleBetweenSubspaces',  # Paper: NC3
     'ETF',  # Paper: NC2
+    'NCC',  # Paper: NC4
 ]
 
 ALL_MEASURES = FAST_MEASURES + SLOW_MEASURES
