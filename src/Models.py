@@ -222,10 +222,10 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
 
     # Set hooked output layers
     out_layers = model_cfg['embedding-layers']
-    print(base_model)
+    # print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers)
-    print("Tracking layers: ", end='\n\t')
-    print(*ret_model.output_layers, sep=',\n\t')
+    # print("Tracking layers: ", end='\n\t')
+    # print(*ret_model.output_layers, sep=',\n\t')
 
     return ret_model
 

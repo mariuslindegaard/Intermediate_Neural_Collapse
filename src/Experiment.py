@@ -64,6 +64,10 @@ class Experiment:
         # Copy config to correct file. Do last so any initalization errors get thrown first.
         self.logger.copy_config_to_dir()
 
+        # A few prints:
+        print(f'Model: {model_cfg["model-name"]}, tracking layers:', *self.wrapped_model.output_layers, sep=',\n\t')
+        print(f'Saving to {self.logger.save_dirs.base}')
+
     def _train_single_epoch(self):
         """Train the model on the specified dataset"""
         device = next(iter(self.wrapped_model.parameters())).device
