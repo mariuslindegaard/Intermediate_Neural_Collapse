@@ -11,7 +11,6 @@ def run_experiment(config_file_path: str):
     # TODO(marius): Add option to clean before training (i.e. removing directory before run)
     # TODO(marius): Add option to throw error if measurements already exist. (Maybe lower level code?)
     # TODO(marius): Add plotting automatically
-    # TODO(marius): Add support for submitting a slurm job
     print("Loading experiment")
     exp = Experiment(config_file_path)
     print("Training NN")
@@ -22,6 +21,7 @@ def run_experiment(config_file_path: str):
 
 def main(config_file_path: str, parse_and_submit_to_slurm: bool):
     if parse_and_submit_to_slurm:
+        print(f"Parsing matrix config at {config_file_path} and submitting to slurm.")
         configs_with_path, parent_savedir = slurm_utils.parse_config_matrix(config_file_path)
         base_savedir = Logger.SaveDirs(parent_savedir, timestamp_subdir=True)
 
