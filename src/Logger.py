@@ -249,11 +249,11 @@ class Logger:
         except shutil.SameFileError as e:
             pass
 
-        # Set latest run to this run
-        self.force_symlink(
-            os.path.split(self.save_dirs.base)[1],  # Use relative path
-            os.path.join(self.save_dirs.base, "../latest"),
-        )
+        # # Set latest run to this run
+        # self.force_symlink(
+        #     os.path.split(self.save_dirs.base)[1],  # Use relative path
+        #     os.path.join(self.save_dirs.base, "../latest"),
+        # )
 
     @staticmethod
     def force_symlink(target, link_name):
