@@ -54,6 +54,20 @@ def _apply_configdict_edits(config_dict: Dict, config_edits: Dict[str, Any],
         else:
             config_dict[key] = val
 
+def _path_amendment(x: Dict[str, Any], key: str) -> str:
+    """Amendment to path for specific point in config matrix, specifying where to save
+
+    :param x:
+    :param key:
+    :return:
+    """
+    # if key.lower() == 'measures':  # If the only difference is in the measures, let them run since they output to different files
+    #     return "m"
+    if key.lower() in ('dataset-id', 'model-name'):
+        return str(x[key])
+    else:
+        return f'{key}_{x[key]}'
+
 
 def _matrix_config_parser(config_matrix: Dict) -> Iterator[Tuple[Dict[str, Any], str]]:
     """
@@ -80,7 +94,7 @@ def _matrix_config_parser(config_matrix: Dict) -> Iterator[Tuple[Dict[str, Any],
                 pool_add_tmp.append({key: elem})
 
             if len(pool_add_tmp) > 1:  # Add relevant path amendment
-                pools.append(list(map(lambda x: (x, f'{key}_{x[key]}'), pool_add_tmp)))
+                pools.append(list(map(lambda x: (x, _path_amendment(x, key)), pool_add_tmp)))
             else:
                 pools.append(list(map(lambda x: (x, ""), pool_add_tmp)))
 
