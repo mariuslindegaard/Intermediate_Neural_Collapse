@@ -46,7 +46,18 @@ class Experiment:
         self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)
 
         # Get all relevant measures
-        measure_strings = measurements_cfg['measures'] if measurements_cfg['measures'] is not True else Measurer.ALL_MEASURES
+        if measurements_cfg['measures'] is True:
+            measure_strings = Measurer.ALL_MEASURES
+        elif type(measurements_cfg['measures']) is str:
+            if measurements_cfg['measures'].lower() == 'fast':
+                measure_strings = Measurer.FAST_MEASURES
+            elif measurements_cfg['measures'].lower() == 'slow':
+                measure_strings = Measurer.SLOW_MEASURES
+            else:
+                raise NotImplementedError(f'Unsupported measure config specified: {measurements_cfg["measures"]}.')
+        else:
+            measure_strings = measurements_cfg['measures']
+
         self.measures = {measurement_str: getattr(Measurer, measurement_str)()
                          for measurement_str in measure_strings}
 
@@ -158,8 +169,9 @@ def _test():
     # run_on_cbcl = True
 
     config_path = "../config/debug.yaml"
+    # config_path = "../config/resnet.yaml"
 
-    print(sys.executable)
+    # print(sys.executable)
     if '/cbcl/cbcl01/lindegrd/miniconda3/envs/' in sys.executable:
         cbcl_base = '/cbcl/cbcl01/lindegrd/NN_layerwise/src/'
         config_path = os.path.join(cbcl_base, config_path)
