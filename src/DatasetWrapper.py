@@ -33,6 +33,7 @@ class DatasetWrapper:
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
             'mnist': DatasetWrapper.mnist,
+            'fashionmnist': DatasetWrapper.fashion_mnist,
             'cifar100': DatasetWrapper.cifar100,
             'imagenet': DatasetWrapper.imagenet,
             'stl10': DatasetWrapper.stl10,
@@ -193,32 +194,56 @@ class DatasetWrapper:
         im_size = 28
         padded_im_size = 32
 
-        tx = transforms.Compose([transforms.Pad((padded_im_size - im_size) // 2), transforms.ToTensor(),
-                                 transforms.Normalize(mean=[0.1307], std=[0.3081])])
+        tx = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.1307], std=[0.3081]),
+            transforms.Pad((padded_im_size - im_size) // 2),
+        ])
 
         train_data = datasets.MNIST(root=self.data_download_dir, train=True, download=download, transform=tx)
         test_data = datasets.MNIST(root=self.data_download_dir, train=False, download=download, transform=tx)
 
         self.num_classes = 10
         self.is_one_hot = False
-        # self.input_shape = (32, 32, 1)
+
+        return train_data, test_data
+
+    def fashion_mnist(self, data_cfg: Optional[Dict] = None, download=True):
+        """FashionMNIST dataset"""
+        assert not data_cfg.get('do-augmentation', False), "Data augmentation specified for FashionMNIST but is not supported."
+
+        im_size = 28
+        padded_im_size = 32
+
+        tx = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.2860], std=[0.3530]),
+            transforms.Pad((padded_im_size - im_size) // 2),
+        ])
+
+        train_data = datasets.FashionMNIST(root=self.data_download_dir, train=True, download=download, transform=tx)
+        test_data = datasets.FashionMNIST(root=self.data_download_dir, train=False, download=download, transform=tx)
+
+        self.num_classes = 10
+        self.is_one_hot = False
 
         return train_data, test_data
 
     def _check_mean_std(self):
         """Check mean and std of the current dataset"""
         import tqdm
-        tot = torch.zeros((3,))
+        ch = self.input_batch_shape[1]  # Num channels
+        tot = torch.zeros((ch,))
         tot_sq = torch.zeros_like(tot)
         i = 0
-        for batch, (inputs, targets) in enumerate(tqdm.tqdm(self.train_loader)):
+        for batch, (inputs, targets) in enumerate(tqdm.tqdm(self.train_loader, desc='Checking mean and std of dataset')):
             tot += torch.sum(inputs, dim=(0, 2, 3))
             tot_sq += torch.sum(inputs**2, dim=(0, 2, 3))
-            i += inputs.shape.numel() // 3
+            i += inputs.shape.numel() // ch
 
         mean = tot/i
         std = torch.sqrt(tot_sq/i - mean**2)
-        print(mean, std)
+        print(mean.item(), std.item())
         return mean, std
 
 
