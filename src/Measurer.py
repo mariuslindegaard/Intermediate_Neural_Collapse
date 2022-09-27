@@ -487,7 +487,7 @@ class NCC(Measurer):
         out: List[Dict[str, Any]] = []
         for split_id, (data_loader, split_class_num_samples) in tqdm.tqdm(dataset_splits.items(), leave=False, desc='  NCC, splits: '):
 
-            layer_class_wise_correct: Dict[str, torch.tensor] = defaultdict(lambda: torch.zeros(dataset.num_classes))
+            layer_class_wise_correct: Dict[str, torch.tensor] = defaultdict(lambda: torch.zeros(dataset.num_classes, device='cpu'))
             for inputs, targets in tqdm.tqdm(data_loader, desc=f'    {split_id} batches', leave=False):
                 inputs, targets = inputs.to(device), targets.to(device)
 
@@ -501,10 +501,10 @@ class NCC(Measurer):
                     activations = activations.flatten(start_dim=1).detach()
 
                     dists = torch.cdist(activations, layer_class_means).squeeze()
-                    one_hot_ncc_preds = F.one_hot(dists.argmin(dim=-1))
+                    one_hot_ncc_preds = F.one_hot(dists.argmin(dim=-1), num_classes=dataset.num_classes)
                     one_hot_correct = one_hot_targets * one_hot_ncc_preds
 
-                    layer_class_wise_correct[layer_name] += torch.sum(one_hot_correct, dim=0)
+                    layer_class_wise_correct[layer_name] += torch.sum(one_hot_correct, dim=0).to('cpu')
 
             for layer_name, class_wise_correct in layer_class_wise_correct.items():
                 # class_wise_accuracy = class_wise_correct / split_class_num_samples
@@ -740,7 +740,6 @@ SLOW_MEASURES = [
 ]
 
 FAST_MEASURES = [
-    'NCC',
     'Accuracy',
     'Traces',  # Paper: NC1
     'CDNV',
