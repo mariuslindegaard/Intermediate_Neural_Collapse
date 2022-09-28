@@ -26,7 +26,8 @@ def main(config_file_path: str, parse_and_submit_to_slurm: bool):
         base_savedir = Logger.SaveDirs(parent_savedir, timestamp_subdir=True)
 
         for idx, (config_dict, rel_savedir) in enumerate(configs_with_path):
-            config_dict['Logging']['save-dir'] = os.path.join(base_savedir.base, rel_savedir)
+            config_dict['Logging']['save-dir'] = \
+                os.path.relpath(os.path.join(base_savedir.base, rel_savedir), start=base_savedir.root_dir)
             run_savedir = slurm_utils.write_conf_to_savedir(config_dict, base_savedir, rel_savedir)
             slurm_utils.write_to_bash_script(idx, base_savedir, run_savedir)
         slurm_utils.run_experiments(len(configs_with_path), base_savedir)

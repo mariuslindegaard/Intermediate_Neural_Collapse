@@ -32,10 +32,10 @@ class SaveDirs:
             ))
             warnings.warn(f'Using "{root_dir}" as root directory')
 
-        self.root_dir = root_dir
+        self.root_dir: str = root_dir
 
         # Set base directory
-        self._base = os.path.join(
+        self._base: str = os.path.join(
             self.root_dir,
             dirname,
         )
