@@ -2,7 +2,7 @@
 # Neural collapse config file. All must be specified
 Model:
   model-name: mlp_small            # Name of model in "Models.py"
-  embedding_layers: [
+  embedding-layers: [
     model.block0.fc,
     model.block3.fc,
     model.fc,
@@ -10,7 +10,7 @@ Model:
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
-  dataset-id: mnist      # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: FashionMNIST      # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 128        # Mini-batch size
   do-augmentation: False # Whether to do data augmentation
 
@@ -31,6 +31,5 @@ Logging:
   log-epochs: [0, 2, 5]  # Overrides log-interval
 
 Measurements:
-  measures: [NC1Measure, CDNVMeasure, TraceMeasure, AccuracyMeasure]
-  # measures: [MLPSVDMeasure, CDNVMeasure, TraceMeasure, AccuracyMeasure, NC1Measure]
+  measures: Fast
 ...
