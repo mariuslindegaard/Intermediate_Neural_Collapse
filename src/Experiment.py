@@ -153,9 +153,9 @@ class Experiment:
             assert 'value' in measurement_result_df.columns or len(measurement_result_df) == 0,\
                 f"Measurement dataframe for {measurement_id} must contain 'value' field but is {measurement_result_df}"
             if not len(measurement_result_df):
-                raise Exception(f"Dataframe for {measurement_id} does not contain data!")
-                # warnings.warn(f"Dataframe for {measurement_id} does not contain data!")
-                # continue  # Do not add measurement
+                # raise Exception(f"Dataframe for {measurement_id} does not contain data!")
+                warnings.warn(f"\nDataframe for {measurement_id} does not contain data!\n")
+                continue  # Do not add measurement
 
             if epoch is not None:
                 measurement_result_df.insert(0, 'epoch', epoch)
