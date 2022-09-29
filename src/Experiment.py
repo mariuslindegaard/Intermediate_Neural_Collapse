@@ -76,6 +76,7 @@ class Experiment:
         optimizer = self.wrapped_optimizer.optimizer
         loss_function = self.wrapped_optimizer.criterion
 
+        tot_correct, tot_samples = 0, 0
         # Iterate over batches to train a single epoch
         pbar_batch = tqdm.tqdm(self.dataset.train_loader, leave=False)
         for batch_index, (inputs, targets) in enumerate(pbar_batch):
@@ -95,6 +96,10 @@ class Experiment:
             correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).sum().item()
 
             pbar_batch.set_description(f'Loss: {loss.item():5.3E}  LR: {optimizer.param_groups[0]["lr"]:.2G} Acc: {correct/len(inputs): <6.3G}')
+            tot_correct += correct
+            tot_samples += len(inputs)
+
+        return tot_correct / tot_samples
 
     def train(self):
         # Start from checkpoint or skip training if previously trained
@@ -120,8 +125,9 @@ class Experiment:
             if epoch in self.logger.log_epochs:
                 self.logger.save_model(self.wrapped_model, epoch, wrapped_optimizer=self.wrapped_optimizer)
 
-            self._train_single_epoch()
+            epoch_acc = self._train_single_epoch()
 
+            pbar_epoch.set_description(f'Epoch, Acc: {epoch_acc: <6.3G}')
             self.wrapped_optimizer.lr_scheduler.step()
 
         self.logger.save_model(self.wrapped_model, self.wrapped_optimizer.max_epochs, wrapped_optimizer=self.wrapped_optimizer)
