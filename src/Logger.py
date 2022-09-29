@@ -124,7 +124,7 @@ class Logger:
         if 'log-epochs' in logging_cfg.keys():
             self.log_epochs = logging_cfg['log-epochs']
         else:
-            self.log_epochs = list(range(0, 10)) + list(range(10, 2000, logging_cfg['log-interval']))
+            self.log_epochs = set(range(0, 10)) | set(range(0, 2001, logging_cfg['log-interval']))
 
     def write_to_log(self, logs: Dict[Hashable, float]):  # TODO(marius): Add test to verify all data is in correct order
         """Log all logging values to file.
