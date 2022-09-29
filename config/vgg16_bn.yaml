@@ -1,17 +1,16 @@
 ---
 # Neural collapse config file. All must be specified
 Model:
-  model-name: vgg16          # Name of model in "our_models"
+  model-name: vgg16_bn
   embedding-layers: [
-    # features, classifier
-    features.0, features.2, features.4,
-    features.5, features.7, features.9,
-    features.10, features.12, features.14, features.16,
-    features.17, features.19, features.21, features.23,
-    features.24, features.26, features.28, features.30,
+    features.0, features.3, features.6,
+    features.7, features.10, features.13,
+    features.14, features.17, features.20, features.23,
+    features.24, features.27, features.30, features.33,
+    features.34, features.37, features.40, features.43,
     avgpool,
     classifier.0, classifier.3, classifier.6,
-  ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
+  ]
 
 Data:
   dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
