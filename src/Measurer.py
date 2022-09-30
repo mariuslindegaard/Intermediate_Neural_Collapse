@@ -453,6 +453,7 @@ class ETF(Measurer):
             normed_layer_rel_class_means = torch.nn.functional.normalize(layer_rel_class_means, dim=1)  # Class means in rows
 
             class_means_cos_angles = normed_layer_rel_class_means @ normed_layer_rel_class_means.T
+            class_means_cos_angles_plus_correction = class_means_cos_angles + 1 / (dataset.num_classes - 1)
 
             for l_class_idx in range(dataset.num_classes):
                 out.append({'value': layer_rel_class_means_norms[l_class_idx].item(), 'layer_name': layer_name,
@@ -460,7 +461,7 @@ class ETF(Measurer):
                 for r_class_idx in range(dataset.num_classes):
                     if l_class_idx == r_class_idx:
                         continue
-                    out.append({'value': class_means_cos_angles[l_class_idx][r_class_idx].item(),
+                    out.append({'value': class_means_cos_angles_plus_correction[l_class_idx][r_class_idx].item(),
                                 'layer_name': layer_name,
                                 'l_ord': l_class_idx, 'r_ord': r_class_idx, 'type': 'angle'})
 
