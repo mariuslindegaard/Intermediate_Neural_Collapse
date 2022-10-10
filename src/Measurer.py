@@ -151,7 +151,7 @@ class CDNV(Measurer):
             var_sums = var_per_sample.reshape(-1, 1) + var_per_sample
             cdnv = var_sums / torch.clamp(2*mean_diffs**2, min=1E-15)  # Clamp to avoid div by 0
             cdnv.fill_diagonal_(0)
-            sum_cdnv = torch.sum(cdnv).item()
+            sum_cdnv = torch.sum(cdnv).item() / (dataset.num_classes**2 - dataset.num_classes)
 
             out.append({'value': sum_cdnv, 'layer_name': layer_name})
 
