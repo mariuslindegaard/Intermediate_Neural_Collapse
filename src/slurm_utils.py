@@ -228,9 +228,10 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:1  # --constraint=40GB
 #SBATCH --constraint=high-capacity
-#SBATCH --time=12:00:00
+#SBATCH --time=18:00:00
 #SBATCH --exclude=node021
 #SBATCH --mem=20000
+#SBATCH --requeue
 #SBATCH --qos=cbmm
 #SBATCH -p cbmm
 # #SBATCH --output=./output.log
