@@ -11,10 +11,12 @@ import utils
 
 
 class ForwardHookedOutput(nn.Module):
-    def __init__(self, base_model: nn.Module, output_layers_specification: Union[Tuple[Hashable], List[Hashable], bool]):
+    def __init__(self, base_model: nn.Module, output_layers_specification: Union[Tuple[Hashable], List[Hashable], bool],
+                 base_model_specifier: str):
         # Init and store base model
         super().__init__()
         self.base_model = base_model
+        self.base_model_specifier = base_model_specifier
 
         # Output hooks
         self.output_layers = []
@@ -280,7 +282,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     # Set hooked output layers
     out_layers = model_cfg['embedding-layers']
     # print(base_model)
-    ret_model = ForwardHookedOutput(base_model, out_layers)
+    ret_model = ForwardHookedOutput(base_model, out_layers, model_name)
     # print("Tracking layers: ", end='\n\t')
     # print(*ret_model.output_layers, sep=',\n\t')
 
