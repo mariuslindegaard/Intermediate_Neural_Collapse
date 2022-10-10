@@ -131,7 +131,6 @@ class SharedWeightMLP(MLP):
         return out
 
 
-
 class _MLPBlock(nn.Module):
     def __init__(self, input_dim: int, output_dim: int, use_bias: bool = None, use_batch_norm: bool = False):
         super(_MLPBlock, self).__init__()
@@ -147,6 +146,62 @@ class _MLPBlock(nn.Module):
             x = self.bn(x)
         x = self.relu(x)
         return x
+
+
+class ConvNet(nn.Module):
+    def __init__(self, input_size: int, hidden_layers_widths: List[int], output_size: int,
+                 use_bias: bool = True, use_softmax: bool = False, use_batch_norm: bool = True):
+        raise NotImplementedError()
+        super(ConvNet, self).__init__()
+
+        self.num_input_channels = input_size
+        self.width = settings.width
+        self.num_matrices = self.depth = settings.depth 
+        self.activation = settings.activation
+        self.bn = use_batch_norm
+
+        layers = nn.Sequential()
+
+        self.input_dimensions = [32]
+        self.output_dimensions = [16]
+
+        layers.append(nn.Conv2d(self.num_input_channels, self.width, 2, 2))
+        if self.bn:
+            layers.append(nn.BatchNorm2d(self.width))
+            self.input_dimensions.append(None)
+            self.output_dimensions.append(None)
+
+        self.input_dimensions += [16, None]
+        self.output_dimensions += [8, None]
+        layers.append(nn.Conv2d(self.width, self.width, 2, 2))
+        if self.bn:
+            layers.append(nn.BatchNorm2d(self.width))
+            self.input_dimensions.append(None)
+            self.output_dimensions.append(None)
+        layers.append(self.activation)
+
+        for i in range(self.depth):
+            self.input_dimensions += [8, None]
+            self.output_dimensions += [8, None]
+
+            layers.append(nn.Conv2d(self.width, self.width, 3, 1, 1))
+            if self.bn:
+                layers.append(nn.BatchNorm2d(self.width))
+                self.input_dimensions.append(None)
+                self.output_dimensions.append(None)
+            layers.append(self.activation)
+
+        self.layers = layers
+
+        self.fc = nn.Linear(self.width*8*8, output_size)
+
+    def forward(self, x):
+
+        output= self.layers(x)
+        output = output.view(output.shape[0], -1)
+        output = self.fc(output)
+
+        return output
 
 
 def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
@@ -178,6 +233,8 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             '_xwide': [2048]*4,
             '_default': [512]*5,
             '_large': [1024]*10,
+            '_xlarge': [1024] * 20,
+            '_huge': [2048] * 20,
         }
         sizes_match = ''
         for sizes_key in sizes.keys():
