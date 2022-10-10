@@ -5,14 +5,14 @@ Model:
   embedding-layers: True     # Intermediate layers to use for NC loss with weightings. "^" used to indicate start of network.
 
 Data:
-  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: cifar100   # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 128        # Mini-batch size
   do-augmentation: False # Whether to do data augmentation
 
 Optimizer:
   loss: mseloss
-  weight-decay: 5.e-4    # Weight decay
-  lr: 0.067              # Learning rate
+  weight-decay: 2.e-4    # Weight decay
+  lr: 0.025              # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum

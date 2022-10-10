@@ -49,7 +49,7 @@ Matrix:
     #     ]]
     mlp:
       Model:
-        model-name: [mlp_xlarge, mlp_huge]
+        model-name: [mlp_large, mlp_xwide, mlp_huge]
         embedding-layers: [[fc]]
     # vgg16:
     #   Model:
@@ -78,5 +78,8 @@ Matrix:
     #   Optimizer:
     #     lr: [0.0125]
   Data:
-    dataset-id: [MNIST, FashionMNIST, cifar10, svhn, stl10, cifar100]
+    dataset-id: [MNIST, mnist, cifar10, stl10]
+  Optimizer:
+    weight-decay: [5.e-4, 1.e-4]    # Weight decay
+    lr: [0.075, 0.025]              # Learning rate
 ...
