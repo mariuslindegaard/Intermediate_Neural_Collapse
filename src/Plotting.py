@@ -156,8 +156,8 @@ class NCPlotter:
         std_df = sel_df.groupby(['epoch', 'layer_name', 'type'], as_index=False).std()
 
 
-        print("Doing 1/(C-1) correction", end=", ")
-        mean_df['value'].loc[std_df['type'] == 'angle'] = mean_df[std_df['type'] == 'angle']['value'] + 1/(10-1)
+        # print("Doing 1/(C-1) correction", end=", ")
+        # mean_df['value'].loc[std_df['type'] == 'angle'] = mean_df[std_df['type'] == 'angle']['value'] + 1/(10-1)
         sns.lineplot(data=mean_df[mean_df['type'] == 'angle'], y='value', **plot_config)
         plt.title(r'Mean of $1/(1-C) + \cos(\mu_i, \mu_j)$')
 
@@ -249,8 +249,8 @@ class NCPlotter:
         selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
 
-        print("Doing 1/(C^2-C) correction", end=", ")
-        df['value'].loc[selection] = df['value'].loc[selection] / (10 * (10-1))
+        # print("Doing 1/(C^2-C) correction", end=", ")
+        # df['value'].loc[selection] = df['value'].loc[selection] / (10 * (10-1))
 
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
 
@@ -261,12 +261,60 @@ class NCPlotter:
         return axes
 
     @staticmethod
+    def _plot_NC1(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+        if axes is None:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            axes = (ax,)
+        plt.sca(axes[0])
+
+        selection = df['epoch'].isin(NCPlotter.standard_epochs)
+        selection &= df['layer_name'] != 'model'
+
+        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
+
+        plt.title(f"NC1 measure")
+        plt.yscale('log')
+        plt.xticks(rotation=90)
+
+        return axes
+
+    @staticmethod
+    def _plot_activationCovSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+        if axes is None:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            axes = (ax,)
+        plt.sca(axes[0])
+
+        selection = df['epoch'].isin(NCPlotter.standard_epochs)
+        selection &= df['layer_name'] != 'model'
+
+        subselection = df['type'] == 'within_single'
+
+        sel_df = df[selection & subselection]
+        # grouped_df = sel_df.groupby(['epoch', 'layer_name', 'class_idx'], as_index=False)
+        class_largest_sv_df = sel_df[sel_df['sigma_idx'].isin([0]) & sel_df['sum'].isin([False])]
+        # class_sum_sv_df = sel_df[sel_df['sigma_idx'] == sel_df['sigma_idx'].max()][sel_df['sum'].isin([True])]  # Is always 1
+
+        sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value',
+                     hue='epoch'
+                     )
+
+        plt.title(f"Within class covariance stable rank")
+        # plt.yscale('log')
+        plt.xticks(rotation=90)
+
+        return axes
+
+
+    @staticmethod
     def get_relevant_measures() -> Dict[str, Tuple[callable, int]]:
         relevant_measures = {
             # Other:
             'Accuracy': (NCPlotter._plot_accuracy, 1),
             'CDNV': (NCPlotter._plot_cdnv, 1),
+            'ActivationCovSVs': (NCPlotter._plot_activationCovSVs, 1),
             # NC1:
+            'NC1': (NCPlotter._plot_NC1, 1),
             'Traces': (NCPlotter._plot_traces, 2),
             # NC2:
             'ETF': (NCPlotter._plot_ETF, 3),
@@ -525,9 +573,10 @@ def main(logs_parent_dir: str):
 
 def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
-    # log_dir = 'logs/matrix/2022-09-28T18:11/'
-    log_dir = 'logs/matrix/2022-10-07T01:48'
+    # log_dir = 'logs/matrix/2022-10-11T20:21'
+    log_dir = 'logs/vgg16'
     # log_dir = 'logs/'
+
     main(os.path.join(root_dir, log_dir))
 
 

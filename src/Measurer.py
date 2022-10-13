@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse.linalg
 import tqdm
+import tensorly.decomposition
 
 from collections import defaultdict, OrderedDict
 from typing import Dict, Tuple, List, Any, Union
@@ -211,17 +212,31 @@ class WeightSVs(Measurer):
         # Calculate
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  VarExpl.', leave=False):
-            if not layer_name.endswith('fc'):
+            layer_obj = utils.rgetattr(wrapped_model.base_model, layer_name)
+            if isinstance(layer_obj, torch.nn.Linear):  # For MLP models and classifier in VGG/ResNet
+                # Get layer weights
+                try:
+                    weights = layer_obj.weight
+                except AttributeError as e:
+                    warnings.warn(f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                    continue
+                weights = weights.detach().cpu().numpy()
+
+
+            elif isinstance(layer_obj, torch.nn.Conv2d):  # For all convlayers in VGG (and others)
+                # Get layer weights
+                try:
+                    weights = layer_obj.weight
+                except AttributeError as e:
+                    warnings.warn(f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                    continue
+
+                # Preprocess by reshaping etc.
+                weights = weights.flatten(start_dim=1).cpu().detach().numpy()  # .transpose(1, 0)
+
+            else:
                 continue
 
-            # Get the model weights
-            fc_layer = utils.rgetattr(wrapped_model.base_model, layer_name)
-            try:
-                weights = fc_layer.weight
-            except AttributeError as e:
-                warnings.warn(f"Module: {layer_name}, {fc_layer}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
-                continue
-            weights = weights.detach().to('cpu').numpy()
 
             U_w, S_w, Vh_w = scipy.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
 
@@ -376,6 +391,81 @@ class MLPSVD(Measurer):
 
 
 class AngleBetweenSubspaces(Measurer):
+    """Measure angle between subspaces of convolutional networks"""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        rank = dataset.num_classes
+
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(class_means.keys(), desc='  ConvAngleBet.Subspc., calculating', leave=False):
+            layer_obj = utils.rgetattr(wrapped_model.base_model, layer_name)
+            if isinstance(layer_obj, torch.nn.Linear):  # For MLP models and classifier in VGG/ResNet
+                # Get layer weights
+                try:
+                    weights = layer_obj.weight
+                except AttributeError as e:
+                    warnings.warn(f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                    continue
+                weights = weights.detach()
+
+                # Decompose layer weights
+                U_w, S_w, Vh_w = torch.linalg.svd(weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
+
+                # Decompose class means
+                layer_class_means = class_means[layer_name]
+                U_m, S_m, Vh_m = torch.linalg.svd(layer_class_means.T)  # l_c_m.T is (d x C)
+
+                # Calculate principal angles
+                S = torch.linalg.svdvals(Vh_w[:rank] @ U_m[:, :rank]).to('cpu').numpy()
+            elif isinstance(layer_obj, torch.nn.Conv2d):  # For all convlayers in VGG (and others)
+                # Get layer weights
+                try:
+                    weights = layer_obj.weight
+                except AttributeError as e:
+                    warnings.warn(f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                    continue
+
+                # Preprocess by reshaping etc.
+                weights = weights.flatten(-2, -1).transpose(1, 0).cpu().detach().numpy()
+                layer_class_means = class_means[layer_name].flatten(-2, -1).permute(1, 2, 0).detach().cpu().numpy()
+
+                # Decompose weights
+                S_w, (U_w, V_w, X_w) = tensorly.decomposition.tucker(weights, rank=rank)
+
+                # Decompose class means
+                S_m, (U_m, V_m, X_m) = tensorly.decomposition.tucker(layer_class_means, rank=rank)
+
+                S = scipy.linalg.svdvals(
+                    U_w.T @ U_m  # U_w[:, :rank].T @ U_m[:, :rank]
+                )
+
+            else:
+                continue
+
+            # layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+
+            # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
+
+            S_sum = np.cumsum(S) / rank
+
+            for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
+                out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
+                out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
+
+        return pd.DataFrame(out)
+
+
+'''
+class AngleBetweenSubspaces(Measurer):
     """Measure angle between subspaces of first 10 singular vectors of weights and class means"""
 
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
@@ -389,7 +479,6 @@ class AngleBetweenSubspaces(Measurer):
         # global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
         # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
 
-        # Calculate NC1-condition and add to output
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(class_means.keys(), desc='  AngleBet.Subspc., calculating', leave=False):
             if not layer_name.endswith('fc'):
@@ -422,7 +511,7 @@ class AngleBetweenSubspaces(Measurer):
                 out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
 
         return pd.DataFrame(out)
-
+'''
 
 class ETF(Measurer):
     """Measure 'angle class means plus 1/(C-1)' and norms of relative class means.
@@ -749,6 +838,7 @@ FAST_MEASURES = [
     # 'ActivationCovSVs',
     # 'MLPSVD',
     'AngleBetweenSubspaces',  # Paper: NC3
+    # 'ConvAngleBetweenSubspaces',  # Paper: NC3
     'ETF',  # Paper: NC2
     'NCC',  # Paper: NC4
 ]
