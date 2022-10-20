@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torchvision.models
 
-from typing import Dict, Hashable, Tuple, Union, List
+from typing import Dict, Hashable, Tuple, Union, List, Optional
 from collections import OrderedDict
 import warnings
 
@@ -151,15 +151,58 @@ class _MLPBlock(nn.Module):
 
 
 class ConvNet(nn.Module):
-    def __init__(self, input_size: int, hidden_layers_widths: List[int], output_size: int,
-                 use_bias: bool = True, use_softmax: bool = False, use_batch_norm: bool = True):
-        raise NotImplementedError()
+    def __init__(self, input_channels: int, image_hw: torch.Tensor, output_size: int,
+                 hidden_layers_channels: List[int],
+                 downsampling_layers: Optional[List[Optional[int]]] = None,
+                 use_bias: bool = False, use_softmax: bool = False, use_batch_norm: bool = True):
         super(ConvNet, self).__init__()
+        if downsampling_layers is None:
+            downsampling_layers = []
 
-        self.num_input_channels = input_size
-        self.width = settings.width
+        # Make downsampling layers list match length of hidden channels
+        self.downsampling_blocks = downsampling_layers + [None] * (len(hidden_layers_channels) - len(downsampling_layers))
+
+        layers = OrderedDict()
+
+        assert hidden_layers_channels, "Convnet must contain hidden layers before classification layer."
+
+        self.preblock_image_hw = {'b0': image_hw}
+        layers['b0'] = _ConvBlock(input_ch=input_channels, output_ch=hidden_layers_channels[0],
+                                  downsample=self.downsampling_blocks[0],
+                                  use_bias=use_bias, use_batch_norm=use_batch_norm, use_relu=False)
+
+        downsampling = downsampling_layers[0]
+        if downsampling is None:
+            next_image_hw = self.preblock_image_hw[f'b0']
+        else:
+            next_image_hw = torch.div(self.preblock_image_hw[f'b0'], downsampling, rounding_mode='floor')
+
+        # import pdb; pdb.set_trace()
+        for idx, (in_ch, out_ch, downsampling) in enumerate(zip(hidden_layers_channels[:-1], hidden_layers_channels[1:], self.downsampling_blocks[1:])):
+            self.preblock_image_hw = {f'b{idx+1}': next_image_hw}
+            layers[f'b{idx+1}'] = _ConvBlock(input_ch=in_ch, output_ch=out_ch,
+                                             downsample=downsampling,  # Is most often None
+                                             use_bias=use_bias, use_batch_norm=use_batch_norm,
+                                             # use_relu=downsampling is None or downsampling > 0
+                                             )  # Don't use relu when specified downsampling is negative
+            if downsampling is None:
+                next_image_hw = self.preblock_image_hw[f'b{idx+1}']
+            else:
+                next_image_hw = torch.div(self.preblock_image_hw[f'b{idx+1}'], downsampling, rounding_mode='floor')
+
+        layers['flatten'] = nn.Flatten()
+        layers['fc'] = nn.Linear(hidden_layers_channels[-1]*next_image_hw.prod(dtype=int), output_size)
+
+        if use_softmax:
+            layers['softmax'] = nn.Softmax()
+
+        self.model = nn.Sequential(
+            layers
+        )
+
+        """
+        self.num_input_channels = input_channels
         self.num_matrices = self.depth = settings.depth 
-        self.activation = settings.activation
         self.bn = use_batch_norm
 
         layers = nn.Sequential()
@@ -167,17 +210,17 @@ class ConvNet(nn.Module):
         self.input_dimensions = [32]
         self.output_dimensions = [16]
 
-        layers.append(nn.Conv2d(self.num_input_channels, self.width, 2, 2))
+        layers.append(nn.Conv2d(self.num_input_channels, hidden_layers_channels[0], 2, 2))
         if self.bn:
-            layers.append(nn.BatchNorm2d(self.width))
+            layers.append(nn.BatchNorm2d(hidden_layers_channels[0]))
             self.input_dimensions.append(None)
             self.output_dimensions.append(None)
 
         self.input_dimensions += [16, None]
         self.output_dimensions += [8, None]
-        layers.append(nn.Conv2d(self.width, self.width, 2, 2))
+        layers.append(nn.Conv2d(hidden_layers_channels[0], hidden_layers_channels[1], 2, 2))
         if self.bn:
-            layers.append(nn.BatchNorm2d(self.width))
+            layers.append(nn.BatchNorm2d(hidden_layers_channels[1]))
             self.input_dimensions.append(None)
             self.output_dimensions.append(None)
         layers.append(self.activation)
@@ -194,17 +237,43 @@ class ConvNet(nn.Module):
             layers.append(self.activation)
 
         self.layers = layers
-
-        self.fc = nn.Linear(self.width*8*8, output_size)
+        """
 
     def forward(self, x):
+        out = self.model(x)
+        return out
 
-        output= self.layers(x)
-        output = output.view(output.shape[0], -1)
-        output = self.fc(output)
 
-        return output
+class _ConvBlock(nn.Module):
+    def __init__(self, input_ch: int, output_ch: int, use_bias: bool = None, use_batch_norm: bool = False,
+                 downsample: Optional[int] = None, use_relu: bool = True):
+        super(_ConvBlock, self).__init__()
 
+        # Handle downsampling
+        # assert downsample > 0, f"Downsampling must be positive integer, but is {downsample}"
+        self.use_relu = use_relu
+        self.downsample = downsample
+
+        if self.downsample:
+            conv_params = dict(kernel_size=self.downsample, stride=self.downsample, padding=0)
+        else:
+            conv_params = dict(kernel_size=3, stride=1, padding=1)
+
+        self.conv = nn.Conv2d(in_channels=input_ch, out_channels=output_ch, **conv_params, bias=use_bias)
+        self.use_batch_norm = use_batch_norm
+        if self.use_batch_norm:
+            self.bn = nn.BatchNorm2d(num_features=output_ch)
+
+        if self.use_relu:
+            self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.use_batch_norm:
+            x = self.bn(x)
+        if self.use_relu:
+            x = self.relu(x)
+        return x
 
 def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     model_name: str = model_cfg['model-name'].lower()
@@ -276,6 +345,32 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         # Set output number of classes
         base_model.classifier[-1] = nn.Linear(in_features=base_model.classifier[-1].in_features,
                                               out_features=datasetwrapper.num_classes)
+    elif model_name.startswith('convnet'):
+        # Find specified convnet filter sizes
+        suffix = model_name[7:]
+        sizes = {
+            '_small': [64]*7,
+            '_default': [128]*10,
+            '_deep': [128]*20,
+            '_wide': [256]*10,
+        }
+        sizes_match = ''
+        for sizes_key in sizes.keys():
+            if sizes_key in suffix:
+                assert not sizes_match, f"Multiple matches for given ConvNet suffix: {sizes_key} and {sizes_match}."
+                sizes_match = sizes_key
+        if not sizes_match:
+            sizes_match = '_default'
+        hidden_layer_sizes = sizes[sizes_match]
+
+        downsampling_layers = [2, 2]
+
+        # Construct Model
+        base_model = ConvNet(input_channels=datasetwrapper.input_batch_shape[1],
+                             image_hw=torch.Tensor(tuple(datasetwrapper.input_batch_shape[2:])),
+                             output_size=datasetwrapper.num_classes,
+                             hidden_layers_channels=hidden_layer_sizes, downsampling_layers=downsampling_layers,
+                             use_bias='_bias' in model_name, use_batch_norm='_nobn' not in model_name)
     else:
         raise NotImplementedError(f"Model type not supported: {model_name}")
 
