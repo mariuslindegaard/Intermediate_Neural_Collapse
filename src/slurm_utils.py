@@ -216,8 +216,12 @@ _JOB_SCRIPT_STUMP = \
 source ~/.conda_init
 conda activate nc
 
+echo
 echo "~~~ RUNNING EXPERIMENT! ~~~"
+echo
 python3 {} --config {}
+echo
+echo
 echo "~~~ FINISHED EXPERIMENT! ~~~"
 """
 
