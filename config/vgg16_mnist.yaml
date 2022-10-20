@@ -1,16 +1,22 @@
 ---
 # Neural collapse config file. All must be specified
 Model:
-  model-name: mlp_large      # Name of model in "our_models"
+  model-name: vgg16          # Name of model in "our_models"
   embedding-layers: [
-    fc,
-    #relu
+    # features, classifier
+    features.0, features.2, features.4,
+    features.5, features.7, features.9,
+    features.10, features.12, features.14, features.16,
+    features.17, features.19, features.21, features.23,
+    features.24, features.26, features.28, features.30,
+    avgpool,
+    classifier.0, classifier.3, classifier.6,
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
-  dataset-id: mnist      # Which dataset-getter to use. Note that shapes are provided by the dataset
-  batch-size: 128        # Mini-batch size
-  do-augmentation: False # Whether to do data augmentation
+  dataset-id: MNIST # Which dataset-getter to use. Note that shapes are provided by the dataset
+  batch-size: 128          # Mini-batch size
+  do-augmentation: False   # Whether to do data augmentation
 
 Optimizer:
   loss: mseloss
@@ -23,10 +29,10 @@ Optimizer:
 
 Logging:
   # When to store weights and calculate measurements
-  save-dir: logs/mlp_large/mnist
+  save-dir: logs/vgg16/mnist
   # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
   log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300]  # Overrides log-interval
 
 Measurements:
-  measures: True
+  measures: Fast
 ...
