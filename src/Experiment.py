@@ -65,6 +65,7 @@ class Experiment:
         self.logger.copy_config_to_dir()
 
         # A few prints:
+        # print(self.wrapped_model.base_model)
         print(f'Model: {model_cfg["model-name"]}, tracking layers:', *self.wrapped_model.output_layers, sep=',\n\t')
         print(f'Saving to {self.logger.save_dirs.base}')
 
@@ -134,7 +135,18 @@ class Experiment:
 
     def do_measurements_on_checkpoints(self):
         """Do measurements over all checkpoints saved"""
-        model_path_list = list(reversed(self.logger.get_all_saved_model_paths()))
+        model_path_list = self.logger.get_all_saved_model_paths()
+
+        # Set which checkpoints to do measurements on first, if they are in the list of checkpoints.
+        priority_checkpoints = [600, 300, 100, 10, 1, 0]
+        for epoch in reversed(priority_checkpoints):
+            for path in model_path_list:
+                if path.endswith(f'{epoch:0>3}.tar'):
+                    model_path_list.remove(path)
+                    model_path_list.append(path)
+                    continue
+        model_path_list = list(reversed(model_path_list))
+
         for model_checkpoint_path in tqdm.tqdm(model_path_list, desc='Checkpoints'):
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
             self.do_measurements(epoch=epoch)
@@ -174,14 +186,11 @@ class Experiment:
 def _test():
     import os
     import sys
-    # config_path = "../config/default.yaml"
-    # config_path = "../config/vgg16.yaml"
-    # run_on_cbcl = True
 
-    config_path = "../config/debug.yaml"
+    # config_path = "../config/debug.yaml"
     # config_path = "../config/resnet.yaml"
+    config_path = "../config/convnet.yaml"
 
-    # print(sys.executable)
     if '/cbcl/cbcl01/lindegrd/miniconda3/envs/' in sys.executable:
         cbcl_base = '/cbcl/cbcl01/lindegrd/NN_layerwise/src/'
         config_path = os.path.join(cbcl_base, config_path)
