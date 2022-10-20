@@ -23,14 +23,14 @@ class SaveDirs:
         """
         # Find root directory
         try:
-            root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('ascii')[:-1]
-        except (OSError, subprocess.CalledProcessError) as e:  # TODO(marius): Make exception catching less general
+            root_dir = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'],
+                                               stderr=subprocess.DEVNULL).decode('ascii')[:-1]
+        except (subprocess.CalledProcessError) as e:  # TODO(marius): Make exception catching less general
             # warnings.warn("Finding git root directory failed with the following error message:\n"+str(e))
-            warnings.warn('Finding git root directory failed')
             root_dir = os.path.abspath(os.path.join(
                 os.path.dirname(__file__), os.pardir
             ))
-            warnings.warn(f'Using "{root_dir}" as root directory')
+            warnings.warn(f'Finding git root directory failed, \nusing "{root_dir}" as root directory')
 
         self.root_dir: str = root_dir
 
