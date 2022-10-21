@@ -432,25 +432,28 @@ class AngleBetweenSubspaces(Measurer):
                     warnings.warn(f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
                     continue
 
+                """
                 # Preprocess by reshaping etc.
                 weights = weights.flatten(-2, -1).transpose(1, 0).cpu().detach().numpy()
                 layer_class_means = class_means[layer_name].flatten(-2, -1).permute(1, 2, 0).detach().cpu().numpy()
-
+                
                 # Decompose weights
                 S_w, (U_w, V_w, X_w) = tensorly.decomposition.tucker(weights, rank=rank)
-
+                
                 # Decompose class means
                 S_m, (U_m, V_m, X_m) = tensorly.decomposition.tucker(layer_class_means, rank=rank)
-
+                
                 S = scipy.linalg.svdvals(
                     U_w.T @ U_m  # U_w[:, :rank].T @ U_m[:, :rank]
                 )
-            # weights_tx = weights.transpose(1,0).flatten(start_dim=1)
-            # features_tx = features.transpose(1,0).flatten(start_dim=1)
-            # Uw,Sw,Vh_w = torch.linalg.svd(weights_tx)
-            # Um,Sm,Vh_m = torch.linalg.svd(features_tx)
+                """
 
-            # S = torch.linalg.svdvals(Uw[:,:rank].t() @ Um[:,:rank]).to('cpu').numpy()
+                weights_tx = weights.transpose(1, 0).flatten(start_dim=1)
+                features_tx = class_means[layer_name].transpose(1, 0).flatten(start_dim=1)
+                Uw,Sw,Vh_w = torch.linalg.svd(weights_tx.detach())
+                Um,Sm,Vh_m = torch.linalg.svd(features_tx.detach())
+
+                S = torch.linalg.svdvals(Uw[:, :rank].t() @ Um[:, :rank]).to('cpu').detach().numpy()
 
             else:
                 continue
@@ -461,7 +464,7 @@ class AngleBetweenSubspaces(Measurer):
 
             # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
 
-            S_sum = np.cumsum(S) / rank
+            S_sum = np.cumsum(S) / len(S)  # <= rank
 
             for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
                 out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
