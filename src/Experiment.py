@@ -94,6 +94,9 @@ class Experiment:
             optimizer.step()
             # optimizer.zero_grad()
 
+            if loss.isnan():
+                raise RuntimeError("Loss is NaN. Model will not train and has likely diverged. Try reducing lr...")
+
             correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).sum().item()
 
             pbar_batch.set_description(f'Loss: {loss.item():5.3E}  LR: {optimizer.param_groups[0]["lr"]:.2G} Acc: {correct/len(inputs): <6.3G}')
