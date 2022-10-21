@@ -62,8 +62,8 @@ class plot_utils:
                 yield run_dir
 
 class NCPlotter:
-    standard_epochs = [10, 20, 50, 100, 200, 300, 400, 500, 600]
-    # standard_epochs = [0, 2, 5]
+    # standard_epochs = [10, 100, 300]
+    standard_epochs = set(range(0, 601))
 
     @classmethod
     def plot_runs(cls, base_dir, run_config_params):
@@ -148,7 +148,7 @@ class NCPlotter:
 
         plot_config = dict(x='layer_name', hue='epoch')
 
-        selection = df['epoch'].isin(NCPlotter.standard_epochs)  # & (measure_df['layer_name'] != 'model') selection &= measure_df['epoch'].isin([10, 50, 100, 200, 300])
+        selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
         sel_df = df[selection]
 
@@ -182,16 +182,33 @@ class NCPlotter:
             axes = (ax,)
         plt.sca(axes[0])
 
+        max_sv = 30
+
         epoch = max(df['epoch'])
         selection = df['sum'].isin([False])
-        selection &= df['sigma_idx'].isin([i for i in range(20)])
+        # selection &= df['sigma_idx'].isin([i for i in range(max_sv)])
         selection &= df['epoch'].isin([epoch])
         selection &= df['layer_name'] != 'model'
 
-        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='sigma_idx')
+        df_sel = df[selection]
+        # sns.lineplot(data=df[selection], x='layer_name', y='value', hue='sigma_idx')
+
+        sv_first_10 = df_sel['sigma_idx'].isin([i for i in range(10)])
+        sv_after_10 = df_sel['sigma_idx'].isin([i for i in range(10, max_sv)])
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            df_sel.loc[:, ('sigma_idx',)] = df_sel['sigma_idx'].map(lambda x: x+1)  # Make sigmas 1-index in presentation
+
+        sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:red')
+        sns.lineplot(data=df_sel[sv_after_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:#ADF', legend='brief')
+        # plt.legend(title='Sing. val. idx', labels=['First 10', f'11-{max_sv}'])   # TODO(marius): Make legends
+        # sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', label='First 10', color='red', ci=100)
+
 
         plt.yscale('log')
-        plt.ylabel(r'$\sum_{i=1}^{m}\sigma_i / \sum_{i}\sigma_i$')
+        # plt.ylabel(r'$\sum_{i=1}^{m}\sigma_i / \sum_{i}\sigma_i$')
+        plt.ylabel(r'$\sigma_i / \sum_{i}\sigma_i$')
         plt.title(f"Singular values as proportion of trace norm, epoch {epoch}")
         plt.xticks(rotation=90)
 
@@ -204,7 +221,8 @@ class NCPlotter:
             axes = (ax,)
         plt.sca(axes[0])
 
-        selection = df['epoch'].isin([0, 1, 50, 100, 150, 200, 250, 300])
+        # selection = df['epoch'].isin([0, 300])
+        selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
         selection &= df['sum'].isin([True])
         selection &= df['sigma_idx'] == df['sigma_idx'].max()
@@ -228,13 +246,16 @@ class NCPlotter:
         # epoch = max(df['epoch'])
         # sns.lineplot(data=df, x='epoch', y='value', hue='split')
 
-        selection = df['epoch'].isin(NCPlotter.standard_epochs)
+        # selection = df['epoch'].isin(NCPlotter.standard_epochs)
+        max_epoch = df['epoch'].max()
+        selection = df['epoch'].isin([max_epoch])
         selection &= df['layer_name'] != 'model'
 
-        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch', style='split')
+        # sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch', style='split')
+        sns.lineplot(data=df[selection], x='layer_name', y='value', style='split')
 
         # plt.yscale('log')
-        plt.title(f"Accuracy of nearest-class-center classifier (NC4)")
+        plt.title(f"Accuracy of nearest-class-center classifier (NC4) for epoch {max_epoch}")
         plt.xticks(rotation=90)
 
         return axes
@@ -295,6 +316,10 @@ class NCPlotter:
         class_largest_sv_df = sel_df[sel_df['sigma_idx'].isin([0]) & sel_df['sum'].isin([False])]
         # class_sum_sv_df = sel_df[sel_df['sigma_idx'] == sel_df['sigma_idx'].max()][sel_df['sum'].isin([True])]  # Is always 1
 
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            class_largest_sv_df.loc[:, ('value',)] = class_largest_sv_df['value'].apply(lambda v: 1/v)
+
         sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value',
                      hue='epoch'
                      )
@@ -325,6 +350,7 @@ class NCPlotter:
             'NCC': (NCPlotter._plot_NCC, 1)
         }
         return relevant_measures
+    pass
 
 
 
@@ -555,7 +581,7 @@ def main(logs_parent_dir: str):
     """Run some standard plotting on the measurements. Prone to failure!!!"""
     sns.set_theme(style='darkgrid')
     run_config_params = dict(  # All parameters must match what is given here.
-        # Model={'model-name': 'mlp_large'},
+        # Model={'model-name': 'vgg16_bn'},
         # Data={'dataset-id': 'cifar100'},
         # Optimizer={},
         # Logging={'save-dir': 'logs/mlp_sharedweight_xwide_nobn_mnist'},
@@ -574,8 +600,8 @@ def main(logs_parent_dir: str):
 def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
     # log_dir = 'logs/matrix/2022-10-11T20:21'
-    log_dir = 'logs/vgg16'
     # log_dir = 'logs/'
+    log_dir = 'logs/matrix/convnet'
 
     main(os.path.join(root_dir, log_dir))
 
