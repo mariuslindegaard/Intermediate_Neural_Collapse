@@ -445,6 +445,12 @@ class AngleBetweenSubspaces(Measurer):
                 S = scipy.linalg.svdvals(
                     U_w.T @ U_m  # U_w[:, :rank].T @ U_m[:, :rank]
                 )
+            # weights_tx = weights.transpose(1,0).flatten(start_dim=1)
+            # features_tx = features.transpose(1,0).flatten(start_dim=1)
+            # Uw,Sw,Vh_w = torch.linalg.svd(weights_tx)
+            # Um,Sm,Vh_m = torch.linalg.svd(features_tx)
+
+            # S = torch.linalg.svdvals(Uw[:,:rank].t() @ Um[:,:rank]).to('cpu').numpy()
 
             else:
                 continue
