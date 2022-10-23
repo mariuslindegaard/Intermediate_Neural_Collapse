@@ -69,11 +69,13 @@ class NCPlotter:
     def plot_runs(cls, base_dir, run_config_params):
         """The base plotting function to copy and modify."""
 
-
         for run_dir in plot_utils.filter_configs(base_dir, run_config_params):
             print(f"\nPlotting {run_dir}:")
             savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
             # fix, axes = plt.subplots(nrows=None, ncols=None, sharex='all')
+            nc_epoch = cls.get_nc_epoch(run_dir)
+
+            # Plot ax(es) for each measure
             for measure, (plot_func, num_axes) in cls.get_relevant_measures().items():
                 # fig = plt.figure(figsize=(8, 8))
                 print(f"\t{measure}", end=', ')
@@ -85,7 +87,7 @@ class NCPlotter:
                     continue
 
                 # super_selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300])
-                plot_func(measure_df)
+                plot_func(measure_df, nc_epoch=nc_epoch)
 
                 plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
                 plt.tight_layout()
@@ -96,7 +98,7 @@ class NCPlotter:
                 plt.close()
 
     @staticmethod
-    def _plot_accuracy(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_accuracy(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -105,7 +107,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_traces(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes, plt.Axes]] = None):
+    def _plot_traces(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes, plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             # plt.figure()
             fig, axes = plt.subplots(2, 1, sharex='all', figsize=(12, 8))
@@ -141,7 +143,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_ETF(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes, plt.Axes, plt.Axes]] = None):
+    def _plot_ETF(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes, plt.Axes, plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, axes = plt.subplots(3, 1, sharex='all', figsize=(12, 8))
         plt.sca(axes[0])
@@ -176,7 +178,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_weightSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_weightSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -215,7 +217,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_angleBetweenSubspaces(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_angleBetweenSubspaces(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -237,7 +239,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_NCC(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_NCC(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -261,7 +263,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_cdnv(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_cdnv(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -282,7 +284,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_NC1(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_NC1(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -300,7 +302,7 @@ class NCPlotter:
         return axes
 
     @staticmethod
-    def _plot_activationCovSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None):
+    def _plot_activationCovSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_epoch: Optional[int] = None):
         if axes is None:
             fig, ax = plt.subplots(1, 1, figsize=(8, 8))
             axes = (ax,)
@@ -330,7 +332,6 @@ class NCPlotter:
 
         return axes
 
-
     @staticmethod
     def get_relevant_measures() -> Dict[str, Tuple[callable, int]]:
         relevant_measures = {
@@ -350,8 +351,13 @@ class NCPlotter:
             'NCC': (NCPlotter._plot_NCC, 1)
         }
         return relevant_measures
-    pass
 
+    @classmethod
+    def get_nc_epoch(cls, run_dir: str) -> int:
+        """Get the first epoch of neural collapse in the specified run"""
+        warnings.warn("Get NC epoch not implemented")
+        return 100  # TODO(marius): Actually implement
+    pass
 
 
 def plot_runs_svds(base_dir, run_config_params, selected_epochs=None):
