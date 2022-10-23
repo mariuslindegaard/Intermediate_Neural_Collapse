@@ -1,22 +1,9 @@
 ---
 # Neural collapse config file. All must be specified
 Model:
-  model-name: resnet18            # Name of model in "Models.py"
+  model-name: convnet            # Name of model in "Models.py"
   embedding-layers: [
-    ^layer1.0.conv1,
-    ^layer1.0.conv2,
-    ^layer1.1.conv1,
-    ^layer1.1.conv2,
-    ^layer4.0.conv1,
-    ^layer4.0.conv2,
-    ^layer4.1.conv1,
-    ^layer4.1.conv2,
-    fc
-    # ^layer1.0, ^layer1.1,
-    # ^layer2.0, ^layer2.1,
-    # ^layer3.0, ^layer3.1,
-    # ^layer4.0, ^layer4.1,
-    # ^avgpool, ^fc
+    conv, fc
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
@@ -41,5 +28,5 @@ Logging:
   log-epochs: [0]  # Overrides log-interval
 
 Measurements:
-  measures: [WeightSVs]
+  measures: [AngleBetweenSubspaces, WeightSVs]
 ...

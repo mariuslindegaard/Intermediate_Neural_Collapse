@@ -190,9 +190,9 @@ def _test():
     import os
     import sys
 
-    # config_path = "../config/debug.yaml"
+    config_path = "../config/debug.yaml"
     # config_path = "../config/resnet.yaml"
-    config_path = "../config/convnet.yaml"
+    # config_path = "../config/convnet.yaml"
 
     if '/cbcl/cbcl01/lindegrd/miniconda3/envs/' in sys.executable:
         cbcl_base = '/cbcl/cbcl01/lindegrd/NN_layerwise/src/'
