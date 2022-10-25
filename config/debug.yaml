@@ -16,9 +16,9 @@ Optimizer:
   weight-decay: 5.e-4    # Weight decay
   lr: 0.025              # Learning rate
   lr-decay: 0.2
-  lr-decay-steps: 3      # Number of learning rate decay steps
+  lr-decay-steps: [1, 3]      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
-  epochs: 0             # Number of epochs to train for
+  epochs: 6             # Number of epochs to train for
 
 Logging:
   # When to store weights and calculate measurements

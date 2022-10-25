@@ -12,18 +12,18 @@ Data:
   do-augmentation: False # Whether to do data augmentation
 
 Optimizer:
-  loss: mseloss
+  loss: celoss
   weight-decay: None    # Weight decay
   lr: None              # Learning rate
-  lr-decay: 0.2
-  lr-decay-steps: 3      # Number of learning rate decay steps
+  lr-decay: 0.1
+  lr-decay-steps: [60, 120, 160]      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
   epochs: 300            # Number of epochs to train for
 
 Logging:
   # When to store weights and calculate measurements
-  save-dir: logs/matrix/convnet_huge
-  log-interval: 25        # At what interval to log checkpoints. Always includes first 10 epochs
+  save-dir: logs/matrix/convnet_celoss
+  log-interval: 20        # At what interval to log checkpoints. Always includes first 10 epochs
   # log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300]  # Overrides log-interval
 
 Measurements:
@@ -31,10 +31,10 @@ Measurements:
 
 Matrix:
   Model:
-    model-name: [convnet_huge]
+    model-name: [convnet, convnet_deep]
   Data:
-    dataset-id: [MNIST, cifar10]
+    dataset-id: [MNIST, FashionMNIST, cifar10]  # , svhn, stl10
   Optimizer:
-    lr: [0.01, 0.0025]
-    weight-decay: [5.e-4, 1.e-4]
+    lr: [0.1,  0.03]
+    weight-decay: [2.e-3, 5.e-4, 1.e-4]
 ...
