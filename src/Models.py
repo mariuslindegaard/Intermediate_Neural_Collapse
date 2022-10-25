@@ -345,6 +345,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
         # Set output number of classes
         base_model.classifier[-1] = nn.Linear(in_features=base_model.classifier[-1].in_features,
                                               out_features=datasetwrapper.num_classes)
+
     elif model_name.startswith('convnet'):
         # Find specified convnet filter sizes
         suffix = model_name[7:]
@@ -353,6 +354,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             '_default': [128]*10,
             '_deep': [128]*20,
             '_wide': [256]*10,
+            '_huge': [512]*20,
         }
         sizes_match = ''
         for sizes_key in sizes.keys():
