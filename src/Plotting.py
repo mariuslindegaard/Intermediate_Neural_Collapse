@@ -62,6 +62,50 @@ class plot_utils:
                 yield run_dir
 
 
+    @staticmethod
+    def add_nc_line(df: pd.DataFrame, nc_layer_name: Optional[str]):
+        """Plot vertical line when NC happens"""
+        if nc_layer_name is not None:
+            plt.axvline(df['layer_name'].cat.categories.get_loc(nc_layer_name) - 1/2,
+                        color='g', linestyle='--',
+                        # label="Neural Collapse"
+                        )
+            # plt.legend()
+
+    @classmethod
+    def get_nc_layer(cls, savedir: SaveDirs) -> Optional[int]:
+        """Get the first layer of neural collapse for the last epoch in the specified run"""
+        print("\tFinding NC epoch: ", end='')
+
+        # Condition for Neural Collapse:
+        measure, condition = 'CDNV', lambda values: values < 1/2
+
+        try:
+            measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
+        except FileNotFoundError as e:
+            print(f"\tError, no file {os.path.join(savedir.measurements, measure + '.csv')}")
+            return None
+
+        measure_df['layer_name'] = measure_df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+
+        last_epoch = measure_df['epoch'].max()
+        if last_epoch != 300:
+            warnings.warn(f"Last epoch is not 300 but {last_epoch}. Make sure this does not break the plot.")
+        # layer_map = {layer_name: idx for idx, layer_name in enumerate(measure_df['layer_name'].unique())}
+
+        satisfies_collapse = condition(measure_df['value'])
+        first_clp = measure_df[satisfies_collapse].groupby(['epoch'])['layer_name'].min()
+
+        return first_clp.get(last_epoch, default=None)
+
+    @staticmethod
+    def reformat_layer_names(layer_names: pd.Series) -> pd.Series:
+        """Reformat layer names to make them more presentable in """
+        pass
+
+    pass
+
+
 class NCPlotter:
     standard_epochs = [10, 100, 300]
     # standard_epochs = set(range(0, 601))
@@ -74,7 +118,7 @@ class NCPlotter:
             print(f"\nPlotting {run_dir}:")
             savedir = SaveDirs(run_dir, timestamp_subdir=False, use_existing=True)
             # fix, axes = plt.subplots(nrows=None, ncols=None, sharex='all')
-            nc_layer = cls.get_nc_layer(savedir)
+            nc_layer = plot_utils.get_nc_layer(savedir)
             print("Layer of NC after max epochs: ", nc_layer)
 
             # Plot ax(es) for each measure
@@ -124,7 +168,7 @@ class NCPlotter:
         #     del plot_config['hue']
         plot_config = dict(x='layer_name', hue='epoch', style='trace', style_order=['sum', 'between', 'within'])
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], y='value', **plot_config)
 
         plt.yscale('log')
@@ -140,7 +184,7 @@ class NCPlotter:
         # between_arr = df['value'].to_numpy()[between_trace_sel] / total_trace
         # within_arr = df['value'].to_numpy()[within_trace_sel] / total_trace
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection][df[selection]['trace'] != 'sum'], y='value', **plot_config)
         # sns.lineplot(data=df[selection][df[selection]['trace'] == 'between'], y='value', **plot_config)
         plt.yscale('log')
@@ -172,17 +216,17 @@ class NCPlotter:
 
         # print("Doing 1/(C-1) correction", end=", ")
         # mean_df['value'].loc[std_df['type'] == 'angle'] = mean_df[std_df['type'] == 'angle']['value'] + 1/(10-1)
-        NCPlotter.add_nc_line(mean_df, nc_layer)
+        plot_utils.add_nc_line(mean_df, nc_layer)
         sns.lineplot(data=mean_df[mean_df['type'] == 'angle'], y='value', **plot_config)
         plt.title(r'Mean of $1/(1-C) + \cos(\mu_i, \mu_j)$')
 
         plt.sca(axes[1])
-        NCPlotter.add_nc_line(mean_df, nc_layer)
+        plot_utils.add_nc_line(mean_df, nc_layer)
         sns.lineplot(data=std_df[std_df['type'] == 'angle'], y='value', **plot_config)
         plt.title(r'Std of $1/(1-C) + \cos(\mu_i, \mu_j)$')
 
         plt.sca(axes[2])
-        NCPlotter.add_nc_line(mean_df, nc_layer)
+        plot_utils.add_nc_line(mean_df, nc_layer)
         rel_std_df = std_df.copy()
         rel_std_df['value'] /= mean_df['value']
         sns.lineplot(data=rel_std_df[std_df['type'] == 'norm'], y='value', **plot_config)
@@ -218,7 +262,7 @@ class NCPlotter:
             warnings.simplefilter('ignore')
             df_sel.loc[:, ('sigma_idx',)] = df_sel['sigma_idx'].map(lambda x: x+1)  # Make sigmas 1-index in presentation
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:red')
         sns.lineplot(data=df_sel[sv_after_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:#ADF', legend='brief')
         # plt.legend(title='Sing. val. idx', labels=['First 10', f'11-{max_sv}'])   # TODO(marius): Make legends
@@ -253,7 +297,7 @@ class NCPlotter:
         # Divide by number of singular values (for experiments post 2022-10-28)
         df['value'] = df['value'].map(lambda val: 10*val / num_sing_vals)  # TODO(marius): Remove "*10" and update AngleBetweenSubspaces measurer (i.e. remove "/10")
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
 
         plt.title(f"Angle between subspaces")
@@ -271,19 +315,15 @@ class NCPlotter:
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
 
-        # epoch = max(df['epoch'])
-        # sns.lineplot(data=df, x='epoch', y='value', hue='split')
-
         # selection = df['epoch'].isin(NCPlotter.standard_epochs)
         max_epoch = df['epoch'].max()
         selection = df['epoch'].isin([max_epoch])
         selection &= df['layer_name'] != 'model'
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         # sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch', style='split')
         sns.lineplot(data=df[selection], x='layer_name', y='value', style='split')
 
-        # plt.yscale('log')
         plt.title(f"Accuracy of nearest-class-center classifier (NC4) for epoch {max_epoch}")
         plt.xticks(rotation=90)
 
@@ -303,7 +343,7 @@ class NCPlotter:
         # print("Doing 1/(C^2-C) correction", end=", ")
         # df['value'].loc[selection] = df['value'].loc[selection] / (10 * (10-1))
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
 
         plt.title(f"CDNV measure")
@@ -323,7 +363,7 @@ class NCPlotter:
         selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
 
         plt.title(f"NC1 measure")
@@ -354,7 +394,7 @@ class NCPlotter:
             warnings.simplefilter('ignore')
             class_largest_sv_df.loc[:, ('value',)] = class_largest_sv_df['value'].apply(lambda v: 1/v)
 
-        NCPlotter.add_nc_line(df, nc_layer)
+        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value', hue='epoch',
                      ci=None,
                      )
@@ -385,47 +425,7 @@ class NCPlotter:
         }
         return relevant_measures
 
-    @classmethod
-    def get_nc_layer(cls, savedir: SaveDirs) -> Optional[int]:
-        """Get the first layer of neural collapse for the last epoch in the specified run"""
-        print("\tFinding NC epoch: ", end='')
-
-        # Condition for Neural Collapse:
-        measure, condition = 'CDNV', lambda values: values < 1/2
-
-        try:
-            measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
-        except FileNotFoundError as e:
-            print(f"\tError, no file {os.path.join(savedir.measurements, measure + '.csv')}")
-            return None
-
-        measure_df['layer_name'] = measure_df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
-
-        last_epoch = measure_df['epoch'].max()
-        if last_epoch != 300:
-            warnings.warn(f"Last epoch is not 300 but {last_epoch}. Make sure this does not break the plot.")
-        # layer_map = {layer_name: idx for idx, layer_name in enumerate(measure_df['layer_name'].unique())}
-
-        satisfies_collapse = condition(measure_df['value'])
-        first_clp = measure_df[satisfies_collapse].groupby(['epoch'])['layer_name'].min()
-
-        return first_clp.get(last_epoch, default=None)
     pass
-
-    @staticmethod
-    def add_nc_line(df: pd.DataFrame, nc_layer_name: Optional[str]):
-        """Plot vertical line when NC happens"""
-        if nc_layer_name is not None:
-            plt.axvline(df['layer_name'].cat.categories.get_loc(nc_layer_name) - 1/2,
-                        color='g', linestyle='--',
-                        # label="Neural Collapse"
-                        )
-            # plt.legend()
-    pass
-
-    @staticmethod
-    def reformat_layer_names(layer_names: pd.Series) -> pd.Series:
-        """Reformat layer names to make them more presentable in """
 
 
 def plot_runs_svds(base_dir, run_config_params, selected_epochs=None):
