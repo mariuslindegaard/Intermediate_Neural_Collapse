@@ -401,7 +401,6 @@ class AngleBetweenSubspaces(Measurer):
         device = next(wrapped_model.parameters()).device
 
         class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
-        rank = dataset.num_classes
 
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(class_means.keys(), desc='  ConvAngleBet.Subspc., calculating', leave=False):
@@ -423,6 +422,7 @@ class AngleBetweenSubspaces(Measurer):
                 U_m, S_m, Vh_m = torch.linalg.svd(layer_class_means.T)  # l_c_m.T is (d x C)
 
                 # Calculate principal angles
+                rank = dataset.num_classes
                 S = torch.linalg.svdvals(Vh_w[:rank] @ U_m[:, :rank]).to('cpu').numpy()
             elif isinstance(layer_obj, torch.nn.Conv2d):  # For all convlayers in VGG (and others)
                 # Get layer weights
@@ -448,11 +448,13 @@ class AngleBetweenSubspaces(Measurer):
                 )
                 """
 
-                weights_tx = weights.transpose(1, 0).flatten(start_dim=1)
-                features_tx = class_means[layer_name].transpose(1, 0).flatten(start_dim=1)
+                weights_tx = weights.transpose(1, 0).flatten(start_dim=1)  # ch_in x (C * h * w)
+                features_tx = class_means[layer_name].transpose(1, 0).flatten(start_dim=1)  # ch_in x (ch_out * h * w)
                 Uw,Sw,Vh_w = torch.linalg.svd(weights_tx.detach())
-                Um,Sm,Vh_m = torch.linalg.svd(features_tx.detach())
+                Um,Sm,Vh_m = torch.linalg.svd(features_tx.detach())  # Note: Sm is rank (C * h * w)
 
+                # rank = dataset.num_classes
+                rank = min(Uw.shape[1], Um.shape[1])
                 S = torch.linalg.svdvals(Uw[:, :rank].t() @ Um[:, :rank]).to('cpu').detach().numpy()
 
             else:
@@ -464,7 +466,7 @@ class AngleBetweenSubspaces(Measurer):
 
             # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
 
-            S_sum = np.cumsum(S) / len(S)  # <= rank
+            S_sum = np.cumsum(S) / 10  # TODO(marius): Remove "/10" and update NCPlotter._plot_angleBetweenSubspaces (i.e. remove "*10")
 
             for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
                 out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
