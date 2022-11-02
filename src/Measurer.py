@@ -140,7 +140,7 @@ class CDNV(Measurer):
 
                     # update within-class cov
                     rel_class_activations = class_activations - class_means[layer_name][class_idx]
-                    total_activation_var[layer_name] += torch.sum(rel_class_activations ** 2).detach().cpu()
+                    total_activation_var[layer_name][class_idx] += torch.sum(rel_class_activations ** 2).detach().cpu()
 
         out: List[Dict[str, Any]] = []
         for layer_name, total_var in total_activation_var.items():
