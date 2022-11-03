@@ -300,6 +300,120 @@ class ActivationCovSVs(Measurer):
         return pd.DataFrame(out)
 
 
+class ActivationStableRank(Measurer):
+    """Calculate (a version of) stable rank of activations.
+
+    Estimates, for the relative activation matrix A (activations minus class-mean for each class):
+        ||A||_F^2 / ||A||_2^2 = sum_i sigma_i^2 / max_i sigma_i^2
+    """
+
+    # OMEGA = 0.5
+    MAX_ITERS = 20
+    COS_ANGLE_DIFF_THRESHOLD = 0.99
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+
+        # Calculate \sum_i \sigma^2_i = Tr(A^T A) = \sum_i a_i^T a_i (Squared Frobenius-norm?) of covariance matrix
+        # (note a_i = h_i - \mu_i for a class c):
+        ## Indexed by layer_name then class_idx
+        frobenius_sq: Dict[str, torch.Tensor] = {layer_name: torch.zeros(dataset.num_classes, device='cpu')
+                                                 for layer_name in class_means.keys()}
+
+        for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  ActivationStableRank [0/2], Frobenius'):
+            inputs, targets = inputs.to(device), targets.to(device)
+
+            embeddings: Dict[str, torch.Tensor]
+            preds, embeddings = wrapped_model(inputs)
+            one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+            # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+
+            for layer_name, activations in embeddings.items():
+                for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                    if not len(class_batch_indexes):  # Continue if no images classified to this class
+                        continue
+                    class_activations = activations[class_batch_indexes, :].detach()
+                    rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)
+
+                    # Calculate inner product of all relative activations belonging to that class, add to frobeinus_sq
+                    frobenius_sq[layer_name][class_idx] += torch.trace(rel_class_activations @ rel_class_activations.T).detach().cpu()
+
+
+        prev_layer_eigvecs: Dict[str, torch.tensor] = {layer_name: torch.ones_like(class_mean).flatten(start_dim=1) / len(class_mean[0])**(1/2)
+                                                 for layer_name, class_mean in class_means.items()}
+
+        # for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  ActivationStableRank [0/2], Frobenius'):
+        # TODO(marius): Implement progress bar
+        pbar = tqdm.tqdm(range(ActivationStableRank.MAX_ITERS), leave=False, desc='  ActivationStableRank [1/2], Eigvecs')
+        for epoch_iters in pbar:
+
+            curr_layer_eigvecs = {layer_name: torch.zeros_like(prev) for layer_name, prev in prev_layer_eigvecs.items()}
+
+            for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='    Batches'):
+                inputs, targets = inputs.to(device), targets.to(device)
+
+                embeddings: Dict[str, torch.Tensor]
+                preds, embeddings = wrapped_model(inputs)
+                one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+                # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+
+                for layer_name, activations in embeddings.items():
+                    for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                        if not len(class_batch_indexes):  # Continue if no images classified to this class
+                            continue
+                        # import pdb; pdb.set_trace()
+                        class_activations = activations[class_batch_indexes, :].detach()
+                        rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)
+
+                        # Calculate inner products of relative activations with previous iteration, multiply with vector and add to new eigvec
+                        inner_prods = rel_class_activations @ prev_layer_eigvecs[layer_name][class_idx]
+                        curr_layer_eigvecs[layer_name][class_idx] += (inner_prods @ rel_class_activations).detach() / class_num_samples[class_idx]
+
+            # Lower bound on eigvals:
+            curr_layer_eigvals = {layer_name: eigvecs.norm(dim=1)
+                            for layer_name, eigvecs in curr_layer_eigvecs.items()}
+            curr_layer_eigvecs_normed = {layer_name: eigvecs / curr_layer_eigvals[layer_name].unsqueeze(1)
+                                         for layer_name, eigvecs in curr_layer_eigvecs.items()}
+
+
+            # Find the minimum cosine angle difference between current and previous eigvec estimate
+            min_cos_angle = 1
+            for layer_name, eigvecs_normed in curr_layer_eigvecs_normed.items():
+                layer_min_cos_angle = torch.min(torch.diag(prev_layer_eigvecs[layer_name] @ eigvecs_normed.T))
+                min_cos_angle = min(min_cos_angle, layer_min_cos_angle)
+
+            # If the cosine-angle difference with the previous estimated eigvec is lower than the threshold, accept the estimate.
+            if min_cos_angle > ActivationStableRank.COS_ANGLE_DIFF_THRESHOLD:
+                break
+            else:
+                pbar.set_description(f'ActivationStableRank [1/2], Eigvecs, Angle diff: {min_cos_angle:.3G}')
+
+            # Update old eigvecs to match new
+            prev_layer_eigvecs = curr_layer_eigvecs_normed
+            # for layer_name, prev_eigvecs in prev_layer_eigvecs.items():
+            #     curr_eigvecs = curr_layer_eigvecs_normed[layer_name]
+            #     omega = ActivationStableRank.OMEGA  # For faster convergence
+            #     new_eigvec = curr_eigvecs*(1+omega) - omega*prev_eigvecs
+            #     prev_layer_eigvecs[layer_name] = new_eigvec / new_eigvec.norm(dim=1, keepdim=True)
+
+        # Calculate for each layer and each class
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  ActivationStableRank, postproc.', leave=False):
+            sq_stable_rank = frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]**2).cpu()  # Note: Sq. of frobenius over largest sq. SV)
+            for class_idx, class_sq_stable_rank in enumerate(sq_stable_rank):
+                out.append({'value': class_sq_stable_rank.item(), 'layer_name': layer_name, 'class_idx': class_idx})
+
+        return pd.DataFrame(out)
+
+
 class MLPSVD(Measurer):
     """Measure MLP SVD metrics"""
 
@@ -854,7 +968,11 @@ FAST_MEASURES = [
     'NCC',  # Paper: NC4
 ]
 
-ALL_MEASURES = FAST_MEASURES + SLOW_MEASURES
+STABLERANK_MEASURE = [
+    'ActivationStableRank',
+]
+
+ALL_MEASURES = FAST_MEASURES + STABLERANK_MEASURE + SLOW_MEASURES
 
 if __name__ == '__main__':
     _test_cache()
