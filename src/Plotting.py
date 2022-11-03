@@ -1,3 +1,4 @@
+import matplotlib.legend
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -15,6 +16,8 @@ import warnings
 # FILETYPE = ".pdf"
 FILETYPE = ".png"
 
+PRETTY_OUT = True
+FIGSIZE_BASE = 2  # 4
 
 class plot_utils:
     @staticmethod
@@ -66,7 +69,7 @@ class plot_utils:
     def add_nc_line(df: pd.DataFrame, nc_layer_name: Optional[str]):
         """Plot vertical line when NC happens"""
         if nc_layer_name is not None:
-            plt.axvline(df['layer_name'].cat.categories.get_loc(nc_layer_name) - 1/2,
+            plt.axvline(df['layer_name'].cat.categories.get_loc(nc_layer_name),
                         color='g', linestyle='--',
                         # label="Neural Collapse"
                         )
@@ -100,10 +103,30 @@ class plot_utils:
 
     @staticmethod
     def reformat_layer_names(layer_names: pd.Series) -> pd.Series:
-        """Reformat layer names to make them more presentable in """
-        pass
+        """Reformat layer names to make them more presentable in plots"""
+        assert hasattr(layer_names, 'cat'), "Pandas series layer_names is not categorical!"
+
+        warnings.warn("TODO: Implement layer name mapper")  # TODO(marius)
+
+        return layer_names
+
+    @staticmethod
+    def capitalize_legend(legend: matplotlib.legend.Legend):
+        return
+        def make_nice(x: plt.Text):
+            t = x.get_text().replace('_', ' ')
+            if t:
+                t = t[0].upper() + t[1:]
+            return x.set_text(t)
+
+        legend.set_title(make_nice(legend.get_title()))
+        # for line in
 
     pass
+
+    @staticmethod
+    def get_xticks(layer_names: pd.Series):
+        return layer_names.cat.codes.unique()
 
 
 class NCPlotter:
@@ -123,7 +146,7 @@ class NCPlotter:
 
             # Plot ax(es) for each measure
             for measure, (plot_func, num_axes) in cls.get_relevant_measures().items():
-                # fig = plt.figure(figsize=(8, 8))
+                # fig = plt.figure(figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
                 print(f"\t{measure}", end=', ')
                 try:
                     measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
@@ -135,28 +158,48 @@ class NCPlotter:
                 # super_selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300])
                 plot_func(measure_df, nc_layer=nc_layer)
 
-                plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
-                plt.tight_layout()
+                # plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
+                if 'cifar10' in savedir.base.lower():
+                    title = 'CIFAR10'
+                elif 'fashionmnist' in savedir.base.lower():
+                    title = 'FashionMNIST'
+                elif 'mnist' in savedir.base.lower():
+                    title = 'MNIST'
+                elif 'svhn' in savedir.base.lower():
+                    title = 'SVNH'
+                else:
+                    continue
+                title = "MLP: " + title
+
+                plt.suptitle(title)
+                plt.tight_layout(pad=0.2)
                 savepath = os.path.join(savedir.plots, measure + FILETYPE)
                 print(f"saving to {savepath}")
                 plt.savefig(savepath)
-                plt.show()
+                # plt.show()
                 plt.close()
 
     @staticmethod
     def _plot_accuracy(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         sns.lineplot(data=df, x='epoch', y='value', hue='split')
+
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+
+        plt.title('Accuracy')
+
         return axes
 
     @staticmethod
     def _plot_traces(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes, plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
             # plt.figure()
-            fig, axes = plt.subplots(2, 1, sharex='all', figsize=(12, 8))
+            fig, axes = plt.subplots(2, 1, sharex='all', figsize=(3*FIGSIZE_BASE, 2.5*FIGSIZE_BASE))
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
 
@@ -174,6 +217,10 @@ class NCPlotter:
         plt.yscale('log')
         plt.legend(loc='center left')
 
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel('Trace')
+
+        plt.title('Trace of covariances: Within- and between-class')
         plt.sca(axes[1])
         total_trace_sel = df['trace'] == 'sum'
         between_trace_sel = df['trace'] == 'between'
@@ -181,22 +228,30 @@ class NCPlotter:
         total_trace = df['value'].to_numpy()[total_trace_sel]
         df.at[between_trace_sel, 'value'] = df['value'].to_numpy()[between_trace_sel] / total_trace
         df.at[within_trace_sel, 'value'] = df['value'].to_numpy()[within_trace_sel] / total_trace
-        # between_arr = df['value'].to_numpy()[between_trace_sel] / total_trace
-        # within_arr = df['value'].to_numpy()[within_trace_sel] / total_trace
 
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection][df[selection]['trace'] != 'sum'], y='value', **plot_config)
-        # sns.lineplot(data=df[selection][df[selection]['trace'] == 'between'], y='value', **plot_config)
         plt.yscale('log')
         plt.legend(loc='center left')
         plt.xticks(rotation=90)
+
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.xlabel('Layer')
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+        plt.ylabel('Relative Trace')
+
+        axes[1].get_legend().remove()
 
         return axes
 
     @staticmethod
     def _plot_ETF(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes, plt.Axes, plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, axes = plt.subplots(3, 1, sharex='all', figsize=(12, 8))
+            fig, axes = plt.subplots(3, 1, sharex='all', figsize=(3*FIGSIZE_BASE, 3*FIGSIZE_BASE))
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
 
@@ -206,11 +261,13 @@ class NCPlotter:
         selection &= df['layer_name'] != 'model'
         sel_df = df[selection]
 
-        mean_df = sel_df.groupby(['epoch', 'layer_name', 'type'], as_index=False).mean()
-        std_df = sel_df.groupby(['epoch', 'layer_name', 'type'], as_index=False).std()
+        mean_df = sel_df.groupby(['epoch', 'layer_name', 'type'], as_index=False).mean().reset_index()
+        std_df = sel_df.groupby(['epoch', 'layer_name', 'type'], as_index=False).std().reset_index()
 
         # Sort layer names to ensure they are in the correct order in the plot
         layer_order = {layer_name: idx for idx, layer_name in enumerate(df['layer_name'].unique())}
+        if len(layer_order) > 12:
+            print("Eureka")
         mean_df.sort_values(by='layer_name', key=lambda layer_names: layer_names.map(layer_order), inplace=True)
         std_df.sort_values(by='layer_name', key=lambda layer_names: layer_names.map(layer_order), inplace=True)
 
@@ -220,10 +277,20 @@ class NCPlotter:
         sns.lineplot(data=mean_df[mean_df['type'] == 'angle'], y='value', **plot_config)
         plt.title(r'Mean of $1/(1-C) + \cos(\mu_i, \mu_j)$')
 
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        # plt.ylabel(r'Avg $\frac{1}{1-C} + \cos(\mu_i, \mu_j)$')
+        plt.ylabel(None)
+
+        ###
         plt.sca(axes[1])
         plot_utils.add_nc_line(mean_df, nc_layer)
         sns.lineplot(data=std_df[std_df['type'] == 'angle'], y='value', **plot_config)
         plt.title(r'Std of $1/(1-C) + \cos(\mu_i, \mu_j)$')
+
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        # plt.ylabel(r'Std $\frac{1}{1-C} + \cos(\mu_i, \mu_j)$')
+        plt.ylabel(r'Std of $\frac{1}{1-C} + \cos(\mu_i, \mu_j)$')
+        plt.ylabel(None)
 
         plt.sca(axes[2])
         plot_utils.add_nc_line(mean_df, nc_layer)
@@ -232,14 +299,27 @@ class NCPlotter:
         sns.lineplot(data=rel_std_df[std_df['type'] == 'norm'], y='value', **plot_config)
         plt.title(r'Relative std of $\|\mu_i\|_2$')
 
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        # plt.ylabel(r'Std $\|\mu_i\|_2$ / Avg $\|\mu_i\|_2$')
+        plt.ylabel(None)
+
+        plt.xlabel('Layer')
         plt.xticks(rotation=30)
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+
+        axes[0].get_legend().remove()
+        axes[2].get_legend().remove()
 
         return axes
 
     @staticmethod
     def _plot_weightSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
@@ -271,16 +351,36 @@ class NCPlotter:
 
         plt.yscale('log')
         # plt.ylabel(r'$\sum_{i=1}^{m}\sigma_i / \sum_{i}\sigma_i$')
-        plt.ylabel(r'$\sigma_i / \sum_{i}\sigma_i$')
-        plt.title(f"Singular values as proportion of trace norm, epoch {epoch}")
+
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        # plt.ylabel(r'$\sigma_i / \sum_{j}\sigma_j$')
+        plt.ylabel(r'$\sigma_i / \sum\sigma_j$')
+        plt.xlabel('Layer')
+
+        plt.title(f"Weight relative SVs, epoch {epoch}")
         plt.xticks(rotation=90)
+
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+
+        lgd = axes[0].get_legend()
+        # mask, labels = [0, 3, 6, 7, 9, 11], [0, 5, 10, 11, 20, 30]
+        mask, labels = [6, 11], [' 1-10', '11-30']
+        handles = [line for idx, line in enumerate(lgd.legendHandles) if idx in mask]
+        # texts = [plt.Text(0, 0, str(i)) for i in [0, 10, 11, 30]]
+        plt.legend(handles=handles, labels=labels, title="SV idx $i$")
+
+        # axes[0].get_legend().remove()
 
         return axes
 
     @staticmethod
     def _plot_angleBetweenSubspaces(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
@@ -298,19 +398,29 @@ class NCPlotter:
         df['value'] = df['value'].map(lambda val: 10*val / num_sing_vals)  # TODO(marius): Remove "*10" and update AngleBetweenSubspaces measurer (i.e. remove "/10")
 
         plot_utils.add_nc_line(df, nc_layer)
-        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
+        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch', palette=['r', 'k'])
+
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel(r'PABS')
+        plt.xlabel('Layer')
 
         plt.title(f"Angle between subspaces")
         plt.yscale('linear')
         plt.ylim([None, 1.04])
         plt.xticks(rotation=90)
 
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+
         return axes
 
     @staticmethod
     def _plot_NCC(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
@@ -324,15 +434,26 @@ class NCPlotter:
         # sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch', style='split')
         sns.lineplot(data=df[selection], x='layer_name', y='value', style='split')
 
-        plt.title(f"Accuracy of nearest-class-center classifier (NC4) for epoch {max_epoch}")
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel(r'NCC Accuracy')
+        plt.xlabel('Layer')
+
+        # plt.title(f"Accuracy of nearest-class-center classifier (NC4) for epoch {max_epoch}")
+        plt.title(f"NCC Accuracy, epoch {max_epoch}")
         plt.xticks(rotation=90)
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+
 
         return axes
 
     @staticmethod
     def _plot_cdnv(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
@@ -346,16 +467,26 @@ class NCPlotter:
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
 
-        plt.title(f"CDNV measure")
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel(r'CDNV')
+        plt.xlabel('Layer')
+
+        plt.title(f'CDNV')
         plt.yscale('log')
         plt.xticks(rotation=90)
+
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
 
         return axes
 
     @staticmethod
     def _plot_NC1(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
@@ -366,16 +497,26 @@ class NCPlotter:
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch')
 
-        plt.title(f"NC1 measure")
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel(r'$\Sigma_B^\dagger \Sigma_W$')
+        plt.xlabel('Layer')
+
+        plt.title(f'NC1')
         plt.yscale('log')
         plt.xticks(rotation=90)
+
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
 
         return axes
 
     @staticmethod
     def _plot_activationCovSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
         if axes is None:
-            fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
@@ -399,9 +540,19 @@ class NCPlotter:
                      ci=None,
                      )
 
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel('Stable rank')
+        plt.xlabel('Layer')
+
         plt.title(f"Within class covariance stable rank")
         # plt.yscale('log')
         plt.xticks(rotation=90)
+
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
 
         return axes
 
@@ -675,7 +826,7 @@ def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
     # log_dir = 'logs/matrix/2022-10-11T20:21'
     # log_dir = 'logs/'
-    # log_dir = 'logs/matrix'
+    # log_dir = 'logs/matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01'  # wd
     log_dir = 'logs/matrix/2022-10-11T20:21/mlp/'
 
     main(os.path.join(root_dir, log_dir))
