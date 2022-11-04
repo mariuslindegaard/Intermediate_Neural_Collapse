@@ -70,6 +70,7 @@ class Experiment:
         # A few prints:
         # print(self.wrapped_model.base_model)
         print(f'Model: {model_cfg["model-name"]}, tracking layers:', *self.wrapped_model.output_layers, sep=',\n\t')
+        print(f'Measuring: {list(self.measures.keys())}')
         print(f'Saving to {self.logger.save_dirs.base}')
 
     def _train_single_epoch(self):
