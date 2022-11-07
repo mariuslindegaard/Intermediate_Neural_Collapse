@@ -17,7 +17,7 @@ import warnings
 FILETYPE = ".png"
 
 PRETTY_OUT = True
-FIGSIZE_BASE = 2  # 4
+FIGSIZE_BASE = 4  # 2
 
 class plot_utils:
     @staticmethod
@@ -69,7 +69,11 @@ class plot_utils:
     def add_nc_line(df: pd.DataFrame, nc_layer_name: Optional[str]):
         """Plot vertical line when NC happens"""
         if nc_layer_name is not None:
-            plt.axvline(df['layer_name'].cat.categories.get_loc(nc_layer_name),
+            try:
+                layer_x_coord = df['layer_name'].cat.categories.get_loc(nc_layer_name)
+            except KeyError:
+                return
+            plt.axvline(layer_x_coord,
                         color='g', linestyle='--',
                         # label="Neural Collapse"
                         )
@@ -81,7 +85,7 @@ class plot_utils:
         print("\tFinding NC epoch: ", end='')
 
         # Condition for Neural Collapse:
-        measure, condition = 'CDNV', lambda values: values < 1/2
+        measure, condition = 'CDNV', lambda values: values < 0.1
 
         try:
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
@@ -89,7 +93,8 @@ class plot_utils:
             print(f"\tError, no file {os.path.join(savedir.measurements, measure + '.csv')}")
             return None
 
-        measure_df['layer_name'] = measure_df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = measure_df['layer_name'].unique()
+        measure_df['layer_name'] = measure_df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         last_epoch = measure_df['epoch'].max()
         if last_epoch != 300:
@@ -159,6 +164,7 @@ class NCPlotter:
                 plot_func(measure_df, nc_layer=nc_layer)
 
                 # plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
+                # Add Dataset to title
                 if 'cifar10' in savedir.base.lower():
                     title = 'CIFAR10'
                 elif 'fashionmnist' in savedir.base.lower():
@@ -168,8 +174,20 @@ class NCPlotter:
                 elif 'svhn' in savedir.base.lower():
                     title = 'SVNH'
                 else:
-                    continue
-                title = "MLP: " + title
+                    title = 'OtherData'
+                # Add model to title
+                if 'mlp' in savedir.base.lower():
+                    title = "MLP: " + title
+                elif 'convnet_deep' in savedir.base.lower():
+                    title = "Convnet_deep: " + title
+                elif 'convnet_huge' in savedir.base.lower():
+                    title = "Convnet_huge: " + title
+                elif 'resnet18' in savedir.base.lower():
+                    title = "Resnet18: " + title
+                elif 'vgg16_bn' in savedir.base.lower():
+                    title = "VGG16_bn: " + title
+                else:
+                    title = "OtherModel: " + title
 
                 plt.suptitle(title)
                 plt.tight_layout(pad=0.2)
@@ -201,7 +219,8 @@ class NCPlotter:
             # plt.figure()
             fig, axes = plt.subplots(2, 1, sharex='all', figsize=(3*FIGSIZE_BASE, 2.5*FIGSIZE_BASE))
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         selection = df['epoch'].isin(NCPlotter.standard_epochs)  # & (measure_df['layer_name'] != 'model') selection &= measure_df['epoch'].isin([10, 50, 100, 200, 300])
         selection &= df['layer_name'] != 'model'
@@ -253,7 +272,8 @@ class NCPlotter:
         if axes is None:
             fig, axes = plt.subplots(3, 1, sharex='all', figsize=(3*FIGSIZE_BASE, 3*FIGSIZE_BASE))
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         plot_config = dict(x='layer_name', hue='epoch')
 
@@ -266,8 +286,6 @@ class NCPlotter:
 
         # Sort layer names to ensure they are in the correct order in the plot
         layer_order = {layer_name: idx for idx, layer_name in enumerate(df['layer_name'].unique())}
-        if len(layer_order) > 12:
-            print("Eureka")
         mean_df.sort_values(by='layer_name', key=lambda layer_names: layer_names.map(layer_order), inplace=True)
         std_df.sort_values(by='layer_name', key=lambda layer_names: layer_names.map(layer_order), inplace=True)
 
@@ -322,7 +340,10 @@ class NCPlotter:
             fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
+
+        plot_utils.add_nc_line(df, nc_layer)
 
         max_sv = 30
 
@@ -342,7 +363,6 @@ class NCPlotter:
             warnings.simplefilter('ignore')
             df_sel.loc[:, ('sigma_idx',)] = df_sel['sigma_idx'].map(lambda x: x+1)  # Make sigmas 1-index in presentation
 
-        plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:red')
         sns.lineplot(data=df_sel[sv_after_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:#ADF', legend='brief')
         # plt.legend(title='Sing. val. idx', labels=['First 10', f'11-{max_sv}'])   # TODO(marius): Make legends
@@ -383,7 +403,8 @@ class NCPlotter:
             fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         num_sing_vals = 10
 
@@ -398,7 +419,9 @@ class NCPlotter:
         df['value'] = df['value'].map(lambda val: 10*val / num_sing_vals)  # TODO(marius): Remove "*10" and update AngleBetweenSubspaces measurer (i.e. remove "/10")
 
         plot_utils.add_nc_line(df, nc_layer)
-        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch', palette=['r', 'k'])
+        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch',
+                     palette=['r', 'k'] if len(df[selection]['epoch'].unique()) == 2 else None,
+                     )
 
         plot_utils.capitalize_legend(plt.gca().get_legend())
         plt.ylabel(r'PABS')
@@ -423,7 +446,8 @@ class NCPlotter:
             fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         # selection = df['epoch'].isin(NCPlotter.standard_epochs)
         max_epoch = df['epoch'].max()
@@ -456,7 +480,8 @@ class NCPlotter:
             fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
@@ -489,7 +514,8 @@ class NCPlotter:
             fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
@@ -519,7 +545,8 @@ class NCPlotter:
             fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
             axes = (ax,)
         plt.sca(axes[0])
-        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype(ordered=True))
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
@@ -557,12 +584,46 @@ class NCPlotter:
         return axes
 
     @staticmethod
+    def _plot_activationStableRank(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
+        if axes is None:
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
+            axes = (ax,)
+        plt.sca(axes[0])
+        layer_order = df['layer_name'].unique()
+        df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
+
+        selection = df['epoch'].isin(NCPlotter.standard_epochs)
+        selection &= df['layer_name'] != 'model'
+
+        plot_utils.add_nc_line(df, nc_layer)
+        sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch',
+                     ci=None,
+                     )
+
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        plt.ylabel('Square Stable rank of H')
+        plt.xlabel('Layer')
+
+        plt.title(f"Square Stable Rank of activation matrix H")
+        # plt.yscale('log')
+        plt.xticks(rotation=90)
+
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+
+        return axes
+
+    @staticmethod
     def get_relevant_measures() -> Dict[str, Tuple[callable, int]]:
         relevant_measures = {
             # Other:
             'Accuracy': (NCPlotter._plot_accuracy, 1),
             'CDNV': (NCPlotter._plot_cdnv, 1),
             'ActivationCovSVs': (NCPlotter._plot_activationCovSVs, 1),
+            'ActivationStableRank': (NCPlotter._plot_activationStableRank, 1),
             # NC1:
             'NC1': (NCPlotter._plot_NC1, 1),
             'Traces': (NCPlotter._plot_traces, 2),
@@ -579,6 +640,7 @@ class NCPlotter:
     pass
 
 
+'''
 def plot_runs_svds(base_dir, run_config_params, selected_epochs=None):
     """For plotting the SVD correlation matrices."""
 
@@ -800,7 +862,7 @@ def plot_approx_rank(base_dir, run_config_params):
             plt.savefig(savepath)
             # plt.savefig(f'../tmp/{os.path.split(savedir.base)[-1]}_{measure}_ranks' + FILETYPE)
             plt.show()
-
+'''
 
 def main(logs_parent_dir: str):
     """Run some standard plotting on the measurements. Prone to failure!!!"""
@@ -824,10 +886,11 @@ def main(logs_parent_dir: str):
 
 def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
+
     # log_dir = 'logs/matrix/2022-10-11T20:21'
     # log_dir = 'logs/'
     # log_dir = 'logs/matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01'  # wd
-    log_dir = 'logs/matrix/2022-10-11T20:21/mlp/'
+    log_dir = 'logs/matrix/2022-11-03T20:02/'
 
     main(os.path.join(root_dir, log_dir))
 
