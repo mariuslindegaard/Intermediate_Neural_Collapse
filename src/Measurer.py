@@ -341,10 +341,10 @@ class ActivationStableRank(Measurer):
                     if not len(class_batch_indexes):  # Continue if no images classified to this class
                         continue
                     class_activations = activations[class_batch_indexes, :].detach()
-                    rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)
+                    rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)  # n x d
 
                     # Calculate inner product of all relative activations belonging to that class, add to frobeinus_sq
-                    frobenius_sq[layer_name][class_idx] += torch.trace(rel_class_activations @ rel_class_activations.T).detach().cpu()
+                    frobenius_sq[layer_name][class_idx] += torch.trace(rel_class_activations @ rel_class_activations.T).detach().cpu()  #
 
 
         prev_layer_eigvecs: Dict[str, torch.tensor] = {layer_name: torch.ones_like(class_mean).flatten(start_dim=1) / len(class_mean[0])**(1/2)
@@ -374,7 +374,7 @@ class ActivationStableRank(Measurer):
                         rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)
 
                         # Calculate inner products of relative activations with previous iteration, multiply with vector and add to new eigvec
-                        inner_prods = rel_class_activations @ prev_layer_eigvecs[layer_name][class_idx]
+                        inner_prods = rel_class_activations @ prev_layer_eigvecs[layer_name][class_idx]  # (n,)
                         curr_layer_eigvecs[layer_name][class_idx] += (inner_prods @ rel_class_activations).detach() / class_num_samples[class_idx]
 
             # Lower bound on eigvals:
@@ -538,6 +538,10 @@ class AngleBetweenSubspaces(Measurer):
                 # Calculate principal angles
                 rank = dataset.num_classes
                 S = torch.linalg.svdvals(Vh_w[:rank] @ U_m[:, :rank]).to('cpu').numpy()
+                avg_cos_angle = np.sum(S) / rank
+
+                out.append({'value': avg_cos_angle.item(), 'rank': rank, 'layer_name': layer_name, 'layer_type': 'fc'})
+
             elif isinstance(layer_obj, torch.nn.Conv2d):  # For all convlayers in VGG (and others)
                 # Get layer weights
                 try:
@@ -564,12 +568,16 @@ class AngleBetweenSubspaces(Measurer):
 
                 weights_tx = weights.transpose(1, 0).flatten(start_dim=1)  # ch_in x (C * h * w)
                 features_tx = class_means[layer_name].transpose(1, 0).flatten(start_dim=1)  # ch_in x (ch_out * h * w)
-                Uw,Sw,Vh_w = torch.linalg.svd(weights_tx.detach())
-                Um,Sm,Vh_m = torch.linalg.svd(features_tx.detach())  # Note: Sm is rank (C * h * w)
+                U_w,S_w,Vh_w = torch.linalg.svd(weights_tx.detach())
+                U_m,S_m,Vh_m = torch.linalg.svd(features_tx.detach())  # Note: Sm is rank (C * h * w)
 
                 # rank = dataset.num_classes
-                rank = min(Uw.shape[1], Um.shape[1])
-                S = torch.linalg.svdvals(Uw[:, :rank].t() @ Um[:, :rank]).to('cpu').detach().numpy()
+                max_rank = min(U_w.shape[1], U_m.shape[1])
+                ranks = list(range(1, min(100, max_rank+1), 1)) + list(range(100, max_rank+1, dataset.num_classes))
+                for rank in ranks:
+                    S = torch.linalg.svdvals(U_w[:, :rank].t() @ U_m[:, :rank]).to('cpu').detach().numpy()
+                    avg_cos_angle = np.sum(S) / rank
+                    out.append({'value': avg_cos_angle.item(), 'rank': rank, 'layer_name': layer_name, 'layer_type': 'conv'})
 
             else:
                 continue
@@ -580,11 +588,11 @@ class AngleBetweenSubspaces(Measurer):
 
             # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
 
-            S_sum = np.cumsum(S) / 10  # TODO(marius): Remove "/10" and update NCPlotter._plot_angleBetweenSubspaces (i.e. remove "*10")
+            # S_sum = np.cumsum(S) / 10  # TODO(marius): Remove "/10" and update NCPlotter._plot_angleBetweenSubspaces (i.e. remove "*10")
 
-            for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
-                out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
-                out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
+            # for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
+            #     out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
+            #     out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
 
         return pd.DataFrame(out)
 

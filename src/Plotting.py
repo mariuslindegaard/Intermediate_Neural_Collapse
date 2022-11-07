@@ -64,7 +64,6 @@ class plot_utils:
                 run_dir = os.path.join(base_dir, run_dirname)
                 yield run_dir
 
-
     @staticmethod
     def add_nc_line(df: pd.DataFrame, nc_layer_name: Optional[str]):
         """Plot vertical line when NC happens"""
@@ -161,7 +160,10 @@ class NCPlotter:
                     continue
 
                 # super_selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300])
-                plot_func(measure_df, nc_layer=nc_layer)
+                ret = plot_func(measure_df, nc_layer=nc_layer)
+                if not ret:
+                    warnings.warn("Plotting failed")
+                    continue
 
                 # plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
                 # Add Dataset to title
@@ -406,17 +408,21 @@ class NCPlotter:
         layer_order = df['layer_name'].unique()
         df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
-        num_sing_vals = 10
+        if 'sigma_idx' in df.columns:
+            warnings.warn("Old evaluation of angleBetweenSubspace, skipping.")
+            return None
 
-        selection = df['epoch'].isin([0, 300])
+        eval_rank = 10
+
+
+        # selection = df['epoch'].isin([0, 300])
+        selection = df['epoch'].isin([0, 1, 2, 3])
         # selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
-        selection &= df['sum'].isin([True])
-        # selection &= df['sigma_idx'] == df['sigma_idx'].max()
-        selection &= df['sigma_idx'] == num_sing_vals - 1
+        selection &= df['rank'] == eval_rank
 
         # Divide by number of singular values (for experiments post 2022-10-28)
-        df['value'] = df['value'].map(lambda val: 10*val / num_sing_vals)  # TODO(marius): Remove "*10" and update AngleBetweenSubspaces measurer (i.e. remove "/10")
+        # df['value'] = df['value'].map(lambda val: val / num_sing_vals)  # TODO(marius): Remove "*10" and update AngleBetweenSubspaces measurer (i.e. remove "/10")
 
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch',
@@ -427,7 +433,7 @@ class NCPlotter:
         plt.ylabel(r'PABS')
         plt.xlabel('Layer')
 
-        plt.title(f"Angle between subspaces")
+        plt.title(f"Angle between subspaces, rank {eval_rank}")
         plt.yscale('linear')
         plt.ylim([None, 1.04])
         plt.xticks(rotation=90)
@@ -869,7 +875,7 @@ def main(logs_parent_dir: str):
     sns.set_theme(style='darkgrid')
     run_config_params = dict(  # All parameters must match what is given here.
         # Model={'model-name': 'convnet'},
-        # Data={'dataset-id': 'cifar100'},
+        Data={'dataset-id': 'mnist_debug'},
         # Optimizer={},
         # Logging={'save-dir': 'logs/mlp_sharedweight_xwide_nobn_mnist'},
         # Logging={'save-dir': 'logs/debug'}
@@ -887,10 +893,9 @@ def main(logs_parent_dir: str):
 def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
 
-    # log_dir = 'logs/matrix/2022-10-11T20:21'
-    # log_dir = 'logs/'
+    log_dir = 'logs/'
     # log_dir = 'logs/matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01'  # wd
-    log_dir = 'logs/matrix/2022-11-03T20:02/'
+    # log_dir = 'logs/matrix/2022-11-03T20:02/'
 
     main(os.path.join(root_dir, log_dir))
 
