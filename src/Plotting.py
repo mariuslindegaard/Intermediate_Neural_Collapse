@@ -414,9 +414,8 @@ class NCPlotter:
 
         eval_rank = 10
 
-
-        # selection = df['epoch'].isin([0, 300])
-        selection = df['epoch'].isin([0, 1, 2, 3])
+        selection = df['epoch'].isin([0, 300])
+        # selection = df['epoch'].isin([0, 1, 2, 3])
         # selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
         selection &= df['rank'] == eval_rank
