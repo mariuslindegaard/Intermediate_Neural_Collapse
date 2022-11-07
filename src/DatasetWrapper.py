@@ -33,6 +33,7 @@ class DatasetWrapper:
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
             'mnist': DatasetWrapper.mnist,
+            'mnist_debug': DatasetWrapper.mnist_debug,
             'fashionmnist': DatasetWrapper.fashion_mnist,
             'cifar100': DatasetWrapper.cifar100,
             'imagenet': DatasetWrapper.imagenet,
@@ -207,6 +208,32 @@ class DatasetWrapper:
         self.is_one_hot = False
 
         return train_data, test_data
+
+    def mnist_debug(self, data_cfg: Optional[Dict] = None, download=True):
+        """A subset of the MNIST dataset"""
+        assert not data_cfg.get('do-augmentation', False), "Data augmentation specified for MNIST but is not supported."
+
+        n_data = 1024
+
+        im_size = 28
+        padded_im_size = 32
+
+        tx = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.1307], std=[0.3081]),
+            transforms.Pad((padded_im_size - im_size) // 2),
+        ])
+
+        train_data = datasets.MNIST(root=self.data_download_dir, train=True, download=download, transform=tx)
+        test_data = datasets.MNIST(root=self.data_download_dir, train=False, download=download, transform=tx)
+
+        self.num_classes = 10
+        self.is_one_hot = False
+
+        train_data_subset = torch.utils.data.random_split(train_data, (n_data, len(train_data)-n_data))[0]
+        test_data_subset = torch.utils.data.random_split(test_data, (n_data//8, len(test_data)-n_data//8))[0]
+
+        return train_data_subset, test_data_subset
 
     def fashion_mnist(self, data_cfg: Optional[Dict] = None, download=True):
         """FashionMNIST dataset"""
