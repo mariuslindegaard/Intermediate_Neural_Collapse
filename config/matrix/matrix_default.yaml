@@ -11,7 +11,7 @@ Data:
 
 Optimizer:
   loss: mseloss
-  weight-decay: 5.e-4    # Weight decay
+  weight-decay: None     # Weight decay
   lr: 0.025              # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps
@@ -25,7 +25,7 @@ Logging:
   log-epochs: [0, 1, 2, 3, 5, 10, 20, 40, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300]  # Overrides log-interval
 
 Measurements:
-  measures: True
+  measures: None
 
 # Matrix for parsing into multiple configs to run with slurm
 # Parsed as follows:
@@ -51,10 +51,38 @@ Matrix:
           ^layer4.0.conv1, ^layer4.0.conv2, ^layer4.1.conv1, ^layer4.1.conv2,
           ^avgpool, ^fc
         ]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.001]
     mlp:
       Model:
         model-name: [mlp_large]
         embedding-layers: [[fc]]
+      Measurements:
+        measures: [True]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.01]
+    convnet_deep:
+      Model:
+        model-name: [convnet_deep]
+        embedding-layers: [[conv, fc]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [2.e-3]
+        lr: [0.01]
+    convnet_huge:
+      Model:
+        model-name: [convnet_huge]
+        embedding-layers: [[conv, fc]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.0025]
     # vgg16:
     #   Model:
     #     model-name: [vgg16]
@@ -67,21 +95,24 @@ Matrix:
     #       avgpool,
     #       classifier.0, classifier.3, classifier.6,
     #     ]]
-    # vgg16_bn:
-    #   Model:
-    #     model-name: [vgg16_bn]
-    #     embedding_layers: [[
-    #       features.0, features.3, features.6,
-    #       features.7, features.10, features.13,
-    #       features.14, features.17, features.20, features.23,
-    #       features.24, features.27, features.30, features.33,
-    #       features.34, features.37, features.40, features.43,
-    #       avgpool,
-    #       classifier.0, classifier.3, classifier.6,
-    #     ]]
-    #   Optimizer:
-    #     lr: [0.0125]
+    vgg16_bn:
+      Model:
+        model-name: [vgg16_bn]
+        embedding_layers: [[
+          features.0, features.3, features.6,
+          features.7, features.10, features.13,
+          features.14, features.17, features.20, features.23,
+          features.24, features.27, features.30, features.33,
+          features.34, features.37, features.40, features.43,
+          avgpool,
+          classifier.0, classifier.3, classifier.6,
+        ]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [2.e-4]
+        lr: [0.005]
   Data:
-    dataset-id: [MNIST, FashionMNIST, cifar10, svhn, stl10]
+    dataset-id: [MNIST, cifar10]
     # dataset-id: [MNIST, FashionMNIST, cifar10, svhn, stl10, cifar100]
 ...
