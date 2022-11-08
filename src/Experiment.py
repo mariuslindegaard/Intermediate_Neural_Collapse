@@ -68,7 +68,7 @@ class Experiment:
         self.logger.copy_config_to_dir()
 
         # A few prints:
-        # print(self.wrapped_model.base_model)
+        print(self.wrapped_model.base_model)
         print(f'Model: {model_cfg["model-name"]}, tracking layers:', *self.wrapped_model.output_layers, sep=',\n\t')
         print(f'Measuring: {list(self.measures.keys())}')
         print(f'Saving to {self.logger.save_dirs.base}')
@@ -152,10 +152,11 @@ class Experiment:
                     model_path_list.remove(path)
                     model_path_list.append(path)
                     continue
-        model_path_list = list(reversed(model_path_list))
+        pbar = tqdm.tqdm(list(reversed(model_path_list)), desc='Checkpoints')
 
-        for model_checkpoint_path in tqdm.tqdm(model_path_list, desc='Checkpoints'):
+        for model_checkpoint_path in pbar:
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
+            pbar.set_description(f'Checkpoints, epoch {epoch: >3}')
             self.do_measurements(epoch=epoch)
 
     def do_measurements(self, epoch: Optional[int] = None):
