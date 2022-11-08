@@ -328,7 +328,7 @@ class ActivationStableRank(Measurer):
         frobenius_sq: Dict[str, torch.Tensor] = {layer_name: torch.zeros(dataset.num_classes, device='cpu')
                                                  for layer_name in class_means.keys()}
 
-        for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  ActivationStableRank [0/2], Frobenius'):
+        for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  ActStbRank [0/2], Frobenius'):
             inputs, targets = inputs.to(device), targets.to(device)
 
             embeddings: Dict[str, torch.Tensor]
@@ -352,7 +352,7 @@ class ActivationStableRank(Measurer):
 
         # for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  ActivationStableRank [0/2], Frobenius'):
         # TODO(marius): Implement progress bar
-        pbar = tqdm.tqdm(range(ActivationStableRank.MAX_ITERS), leave=False, desc='  ActivationStableRank [1/2], Eigvecs')
+        pbar = tqdm.tqdm(range(ActivationStableRank.MAX_ITERS), leave=False, desc='  ActStbRank [1/2], Eigvecs')
         for epoch_iters in pbar:
 
             curr_layer_eigvecs = {layer_name: torch.zeros_like(prev) for layer_name, prev in prev_layer_eigvecs.items()}
@@ -394,7 +394,7 @@ class ActivationStableRank(Measurer):
             if min_cos_angle > ActivationStableRank.COS_ANGLE_DIFF_THRESHOLD:
                 break
             else:
-                pbar.set_description(f'ActivationStableRank [1/2], Eigvecs, dCos: {min_cos_angle:.3G}')
+                pbar.set_description(f'ActStbRank [1/2], EVs, dCos: {min_cos_angle:.3G}')
 
             # Update old eigvecs to match new
             # prev_layer_eigvecs = curr_layer_eigvecs_normed
@@ -407,7 +407,8 @@ class ActivationStableRank(Measurer):
         # Calculate for each layer and each class
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  ActivationStableRank, postproc.', leave=False):
-            sq_stable_rank = frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]**2).cpu()  # Note: Sq. of frobenius over largest sq. SV)
+            # sq_stable_rank = frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]).cpu()  # Note: Sq. of frobenius over largest sq. SV)
+            sq_stable_rank = torch.sqrt(frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]).cpu())  # Note: Sq. of frobenius over largest sq. SV)
             for class_idx, class_sq_stable_rank in enumerate(sq_stable_rank):
                 out.append({'value': class_sq_stable_rank.item(), 'layer_name': layer_name, 'class_idx': class_idx})
 
