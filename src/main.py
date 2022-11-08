@@ -19,11 +19,11 @@ def run_experiment(config_file_path: str):
     exp.do_measurements_on_checkpoints()
 
 
-def main(config_file_path: str, parse_and_submit_to_slurm: bool):
+def main(config_file_path: str, parse_and_submit_to_slurm: bool, use_timestamp_with_slurm: bool):
     if parse_and_submit_to_slurm:
         print(f"Parsing matrix config at {config_file_path} and submitting to slurm.")
         configs_with_path, parent_savedir = slurm_utils.parse_config_matrix(config_file_path)
-        base_savedir = Logger.SaveDirs(parent_savedir, timestamp_subdir=True)
+        base_savedir = Logger.SaveDirs(parent_savedir, timestamp_subdir=use_timestamp_with_slurm)
 
         for idx, (config_dict, rel_savedir) in enumerate(configs_with_path):
             config_dict['Logging']['save-dir'] = \
@@ -41,7 +41,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', type=str, required=True, help='Config file to use')
     parser.add_argument('-s', '--slurm', action='store_true', default=False, help='Parse matrix-config and submit batch to slurm')
+    parser.add_argument('-n', '--no_slurm_timestamp', action='store_true', default=False, help="Don't include timestamp in logdir when running with slurm")
     _args = parser.parse_args()
 
-    main(config_file_path=_args.config, parse_and_submit_to_slurm=_args.slurm)
+    main(config_file_path=_args.config,
+         parse_and_submit_to_slurm=_args.slurm,
+         use_timestamp_with_slurm=(_args.slurm and not _args.no_slurm_timestamp))
     # run_experiment(config_file_path=_args.config)
