@@ -307,9 +307,9 @@ class ActivationStableRank(Measurer):
         ||A||_F^2 / ||A||_2^2 = sum_i sigma_i^2 / max_i sigma_i^2
     """
 
-    # OMEGA = 0.5
+    OMEGA = 0.5
     MAX_ITERS = 20
-    COS_ANGLE_DIFF_THRESHOLD = 0.99
+    COS_ANGLE_DIFF_THRESHOLD = 0.999
 
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
         if shared_cache is None:
@@ -394,15 +394,15 @@ class ActivationStableRank(Measurer):
             if min_cos_angle > ActivationStableRank.COS_ANGLE_DIFF_THRESHOLD:
                 break
             else:
-                pbar.set_description(f'ActivationStableRank [1/2], Eigvecs, Angle diff: {min_cos_angle:.3G}')
+                pbar.set_description(f'ActivationStableRank [1/2], Eigvecs, dCos: {min_cos_angle:.3G}')
 
             # Update old eigvecs to match new
-            prev_layer_eigvecs = curr_layer_eigvecs_normed
-            # for layer_name, prev_eigvecs in prev_layer_eigvecs.items():
-            #     curr_eigvecs = curr_layer_eigvecs_normed[layer_name]
-            #     omega = ActivationStableRank.OMEGA  # For faster convergence
-            #     new_eigvec = curr_eigvecs*(1+omega) - omega*prev_eigvecs
-            #     prev_layer_eigvecs[layer_name] = new_eigvec / new_eigvec.norm(dim=1, keepdim=True)
+            # prev_layer_eigvecs = curr_layer_eigvecs_normed
+            for layer_name, prev_eigvecs in prev_layer_eigvecs.items():
+                curr_eigvecs = curr_layer_eigvecs_normed[layer_name]
+                omega = ActivationStableRank.OMEGA  # For faster convergence
+                new_eigvec = curr_eigvecs*(1+omega) - omega*prev_eigvecs
+                prev_layer_eigvecs[layer_name] = new_eigvec / new_eigvec.norm(dim=1, keepdim=True)
 
         # Calculate for each layer and each class
         out: List[Dict[str, Any]] = []
