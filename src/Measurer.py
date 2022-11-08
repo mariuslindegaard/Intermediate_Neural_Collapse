@@ -407,8 +407,8 @@ class ActivationStableRank(Measurer):
         # Calculate for each layer and each class
         out: List[Dict[str, Any]] = []
         for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  ActivationStableRank, postproc.', leave=False):
-            # sq_stable_rank = frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]).cpu()  # Note: Sq. of frobenius over largest sq. SV)
-            sq_stable_rank = torch.sqrt(frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]).cpu())  # Note: Sq. of frobenius over largest sq. SV)
+            sq_stable_rank = frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]).cpu()  # Note: Sq. of frobenius over largest sq. SV)
+            # sq_stable_rank = torch.sqrt(frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]**2).cpu())  # Note: Sq. of frobenius over largest sq. SV)
             for class_idx, class_sq_stable_rank in enumerate(sq_stable_rank):
                 out.append({'value': class_sq_stable_rank.item(), 'layer_name': layer_name, 'class_idx': class_idx})
 
