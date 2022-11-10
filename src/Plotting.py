@@ -17,7 +17,7 @@ import warnings
 FILETYPE = ".png"
 
 PRETTY_OUT = True
-FIGSIZE_BASE = 4  # 2
+FIGSIZE_BASE = 2  # 2
 
 class plot_utils:
     @staticmethod
@@ -84,7 +84,8 @@ class plot_utils:
         print("\tFinding NC epoch: ", end='')
 
         # Condition for Neural Collapse:
-        measure, condition = 'CDNV', lambda values: values < 0.1
+        # measure, condition = 'CDNV', lambda df: df['value'] < 0.2  # 0.1
+        measure, condition = 'Traces', lambda df:  (df['trace'] == 'within') & (df['value'] < 0.1)
 
         try:
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
@@ -100,7 +101,7 @@ class plot_utils:
             warnings.warn(f"Last epoch is not 300 but {last_epoch}. Make sure this does not break the plot.")
         # layer_map = {layer_name: idx for idx, layer_name in enumerate(measure_df['layer_name'].unique())}
 
-        satisfies_collapse = condition(measure_df['value'])
+        satisfies_collapse = condition(measure_df)
         first_clp = measure_df[satisfies_collapse].groupby(['epoch'])['layer_name'].min()
 
         return first_clp.get(last_epoch, default=None)
@@ -125,8 +126,6 @@ class plot_utils:
 
         legend.set_title(make_nice(legend.get_title()))
         # for line in
-
-    pass
 
     @staticmethod
     def get_xticks(layer_names: pd.Series):
@@ -161,7 +160,7 @@ class NCPlotter:
 
                 # super_selection = measure_df['epoch'].isin([10, 20, 50, 100, 200, 300])
                 ret = plot_func(measure_df, nc_layer=nc_layer)
-                if not ret:
+                if ret is None:  # If plotting fails, don't save it
                     warnings.warn("Plotting failed")
                     continue
 
@@ -181,17 +180,27 @@ class NCPlotter:
                 if 'mlp' in savedir.base.lower():
                     title = "MLP: " + title
                 elif 'convnet_deep' in savedir.base.lower():
-                    title = "Convnet_deep: " + title
+                    title = "Convnet: " + title
                 elif 'convnet_huge' in savedir.base.lower():
-                    title = "Convnet_huge: " + title
+                    title = "Convnet huge: " + title
                 elif 'resnet18' in savedir.base.lower():
                     title = "Resnet18: " + title
                 elif 'vgg16_bn' in savedir.base.lower():
-                    title = "VGG16_bn: " + title
+                    title = "VGG16: " + title
                 else:
                     title = "OtherModel: " + title
 
-                plt.suptitle(title)
+                plt.suptitle(title, y=0.99)
+                if PRETTY_OUT:
+                    # plt.gca().tick_params(axis='x', labelsize=10)
+                    ax = plt.gca()
+                    xticks = ax.get_xticklabels()
+                    new_xticks = []
+                    for idx, tickname in enumerate(xticks):
+                        new_xticks.append(tickname if (idx+1) % 2 else '')
+                    if len(xticks) > 15 and measure != 'Accuracy':
+                        ax.set_xticks(ax.get_xticks())
+                        ax.set_xticklabels(new_xticks)
                 plt.tight_layout(pad=0.2)
                 savepath = os.path.join(savedir.plots, measure + FILETYPE)
                 print(f"saving to {savepath}")
@@ -440,7 +449,8 @@ class NCPlotter:
         if PRETTY_OUT:
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+                # plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df['layer_name']))
             plt.xticks(rotation=0)
 
         return axes
@@ -873,8 +883,8 @@ def main(logs_parent_dir: str):
     """Run some standard plotting on the measurements. Prone to failure!!!"""
     sns.set_theme(style='darkgrid')
     run_config_params = dict(  # All parameters must match what is given here.
-        # Model={'model-name': 'convnet'},
-        Data={'dataset-id': 'mnist_debug'},
+        # Model={'model-name': 'convnet_deep'},
+        Data={'dataset-id': 'cifar10'},
         # Optimizer={},
         # Logging={'save-dir': 'logs/mlp_sharedweight_xwide_nobn_mnist'},
         # Logging={'save-dir': 'logs/debug'}
@@ -892,11 +902,15 @@ def main(logs_parent_dir: str):
 def _test():
     root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
 
-    log_dir = 'logs/'
-    # log_dir = 'logs/matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01'  # wd
-    # log_dir = 'logs/matrix/2022-11-03T20:02/'
 
-    main(os.path.join(root_dir, log_dir))
+    log_dirs = []
+    # log_dirs.append('logs/')
+    # log_dirs.append('logs/matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01')
+    log_dirs.append('logs/matrix/2022-10-11T20:21/mlp')
+    log_dirs.append('logs/matrix/2022-11-03T20:02/convnet_deep')
+
+    for log_dir in log_dirs:
+        main(os.path.join(root_dir, log_dir))
 
 
 if __name__ == '__main__':
