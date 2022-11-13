@@ -273,7 +273,8 @@ class ActivationCovSVs(Measurer):
 
                 rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
                 rel_sigmas = S_w / np.sum(S_w)
-                for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+                for idx, (sigma, rel_sigma, rel_sigma_sum) in enumerate(zip(S_w, rel_sigmas, rel_sigmas_sum)):
+                    out.append({'value': sigma, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'type': 'within_single_absolute', 'sum': False})
                     out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'type': 'within_single', 'sum': False})
                     out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': class_idx, 'layer_name': layer_name, 'type': 'within_single', 'sum': True})
 
@@ -283,7 +284,8 @@ class ActivationCovSVs(Measurer):
 
             rel_sigmas_sum = np.cumsum(total_within_sigmas) / np.sum(total_within_sigmas)
             rel_sigmas = total_within_sigmas / np.sum(total_within_sigmas)
-            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+            for idx, (sigma, rel_sigma, rel_sigma_sum) in enumerate(zip(total_within_sigmas, rel_sigmas, rel_sigmas_sum)):
+                out.append({'value': sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'within_sum_absolute', 'sum': False})
                 out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'within_sum', 'sum': False})
                 out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'within_sum', 'sum': True})
 
@@ -293,7 +295,8 @@ class ActivationCovSVs(Measurer):
             S_w = torch.linalg.svdvals(layer_cov_between).to('cpu').numpy()
             rel_sigmas_sum = np.cumsum(S_w) / np.sum(S_w)
             rel_sigmas = total_within_sigmas / np.sum(S_w)
-            for idx, (rel_sigma, rel_sigma_sum) in enumerate(zip(rel_sigmas, rel_sigmas_sum)):
+            for idx, (sigma, rel_sigma, rel_sigma_sum) in enumerate(zip(S_w, rel_sigmas, rel_sigmas_sum)):
+                out.append({'value': sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': False})
                 out.append({'value': rel_sigma, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': False})
                 out.append({'value': rel_sigma_sum, 'sigma_idx': idx, 'class_idx': -1, 'layer_name': layer_name, 'type': 'between', 'sum': True})
 
@@ -940,7 +943,8 @@ class SharedMeasurementVarsCache:
 
         # Make cov_within an average instead of a sum
         for layer_name, cov_within_sum in cov_within.items():
-            cov_within[layer_name] = cov_within_sum / class_num_samples.unsqueeze(-1).unsqueeze(-1).to('cpu')  # TODO(marius): Use bessels correction?
+            # Divide by num samples, but at least one to remedy 0-sample classes producing NaNs
+            cov_within[layer_name] = cov_within_sum / torch.clamp(class_num_samples.unsqueeze(-1).unsqueeze(-1).to('cpu'), min=1)  # TODO(marius): Use bessels correction?
 
         return cov_within
 
