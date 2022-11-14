@@ -10,7 +10,7 @@ import yaml
 from Logger import SaveDirs
 import utils
 
-from typing import Dict, Any, Iterator, Tuple, Optional
+from typing import Dict, Any, Iterator, Tuple, Optional, Union
 import warnings
 
 # FILETYPE = ".pdf"
@@ -79,13 +79,13 @@ class plot_utils:
             # plt.legend()
 
     @classmethod
-    def get_nc_layer(cls, savedir: SaveDirs) -> Optional[int]:
+    def get_nc_layer(cls, savedir: SaveDirs) -> Optional[Union[int, str]]:
         """Get the first layer of neural collapse for the last epoch in the specified run"""
         print("\tFinding NC epoch: ", end='')
 
         # Condition for Neural Collapse:
-        # measure, condition = 'CDNV', lambda df: df['value'] < 0.2  # 0.1
-        measure, condition = 'Traces', lambda df:  (df['trace'] == 'within') & (df['value'] < 0.1)
+        measure, condition = 'CDNV', lambda df: df['value'] < 0.2  # 0.1
+        # measure, condition = 'Traces', lambda df:  (df['trace'] == 'within') & (df['value'] < 0.1)
 
         try:
             measure_df = pd.read_csv(os.path.join(savedir.measurements, measure + '.csv'))
@@ -566,19 +566,23 @@ class NCPlotter:
         selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
 
-        subselection = df['type'] == 'within_single'
+        # subselection &= df['class_idx'].isin([0, 1])  # For when using cifar10_doubleclass
 
-        sel_df = df[selection & subselection]
-        # grouped_df = sel_df.groupby(['epoch', 'layer_name', 'class_idx'], as_index=False)
-        class_largest_sv_df = sel_df[sel_df['sigma_idx'].isin([0]) & sel_df['sum'].isin([False])]
-        # class_sum_sv_df = sel_df[sel_df['sigma_idx'] == sel_df['sigma_idx'].max()][sel_df['sum'].isin([True])]  # Is always 1
+        sel_df = df[selection]
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            class_largest_sv_df.loc[:, ('value',)] = class_largest_sv_df['value'].apply(lambda v: 1/v)
+            # sel_df['value_inv'] = sel_df[sel_df['type'] == 'within_single']['value'].apply(lambda val: 1/val)
+            sel_df['value_sq_normed_inv'] = (
+                sel_df[sel_df['type'] == 'within_single_absolute']
+                .groupby(['epoch', 'layer_name', 'class_idx'])['value']
+                .transform(lambda val: (val**2).sum()/val**2)
+            )  # For sum_i sigma_i^2 / sigma_max^2
+
+        class_largest_sv_df = sel_df[sel_df['sigma_idx'].isin([0]) & sel_df['sum'].isin([False])]
 
         plot_utils.add_nc_line(df, nc_layer)
-        sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value', hue='epoch',
+        sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value_sq_normed_inv', hue='epoch',
                      ci=None,
                      )
 
@@ -597,6 +601,67 @@ class NCPlotter:
             plt.xticks(rotation=0)
 
         return axes
+
+    '''For plotting the distribution of SVs
+    @staticmethod
+    def _plot_activationCovSVs(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
+        if axes is None:
+            fig, ax = plt.subplots(1, 1, figsize=(2*FIGSIZE_BASE, 2*FIGSIZE_BASE))
+            axes = (ax,)
+        plt.sca(axes[0])
+        layer_order = df['layer_name'].unique()
+        # df['layer_name'] = df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
+
+        # selection = df['epoch'].isin([0, 1] + NCPlotter.standard_epochs)
+        selection = df['epoch'].isin([0, 10, 300])
+        # selection &= df['layer_name'] != 'model'
+        # selection &= df['layer_name'].isin(['model.block3.fc', 'model.block8.fc'])
+        selection &= df['layer_name'].isin(['model.block3.fc', 'model.block8.fc'])
+
+        subselection = df['type'] == 'within_single'
+        subselection &= df['sum'].isin([False])
+
+        sel_df = df[selection & subselection]
+        # grouped_df = sel_df.groupby(['epoch', 'layer_name', 'class_idx'], as_index=False)
+        class_largest_sv_df = sel_df[sel_df['sigma_idx'].isin([0]) & sel_df['sum'].isin([False])]
+        # class_sum_sv_df = sel_df[sel_df['sigma_idx'] == sel_df['sigma_idx'].max()][sel_df['sum'].isin([True])]  # Is always 1
+
+        # with warnings.catch_warnings():
+        #     warnings.simplefilter('ignore')
+        #     class_largest_sv_df.loc[:, ('value',)] = class_largest_sv_df['value'].apply(lambda v: 1/v)
+
+        # plot_utils.add_nc_line(df, nc_layer)
+        # sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value', hue='epoch',
+        #              ci=None,
+        #              )
+        sns.lineplot(data=sel_df, x='sigma_idx', y='value', hue='epoch',
+                     style='layer_name',
+                     ci=None,
+                     palette=['r', 'p', 'g'],
+                     )
+
+        plot_utils.capitalize_legend(plt.gca().get_legend())
+        # plt.ylabel('Stable rank')
+        # plt.xlabel('Layer')
+        plt.xlabel("SV idx.")
+        plt.ylabel("Rel sing. val.")
+        plt.yscale('log')
+        # plt.ylim([10**(-6), 0.2])
+
+
+        # plt.title(f"Within class covariance stable rank")
+        # plt.yscale('log')
+        plt.xticks(rotation=90)
+
+        if PRETTY_OUT:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
+            plt.xticks(rotation=0)
+
+        return axes
+
+    '''
 
     @staticmethod
     def _plot_activationStableRank(df: pd.DataFrame, axes: Optional[Tuple[plt.Axes]] = None, nc_layer: Optional[str] = None):
@@ -884,7 +949,7 @@ def main(logs_parent_dir: str):
     sns.set_theme(style='darkgrid')
     run_config_params = dict(  # All parameters must match what is given here.
         # Model={'model-name': 'convnet_deep'},
-        Data={'dataset-id': 'cifar10'},
+        # Data={'dataset-id': 'cifar10'},
         # Optimizer={},
         # Logging={'save-dir': 'logs/mlp_sharedweight_xwide_nobn_mnist'},
         # Logging={'save-dir': 'logs/debug'}
