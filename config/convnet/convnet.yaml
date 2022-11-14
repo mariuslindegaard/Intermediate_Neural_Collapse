@@ -1,7 +1,7 @@
 ---
 # Neural collapse config file. All must be specified
 Model:
-  model-name: convNet_large     # Name of model in "our_models"
+  model-name: convNet_deep     # Name of model in "our_models"
   embedding-layers: [
     conv, fc
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
