@@ -33,6 +33,7 @@ class DatasetWrapper:
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
             'cifar10_singleclass': DatasetWrapper.cifar10_singleclass,
+            'cifar10_doubleclass': DatasetWrapper.cifar10_doubleclass,
             'mnist': DatasetWrapper.mnist,
             'mnist_debug': DatasetWrapper.mnist_debug,
             'fashionmnist': DatasetWrapper.fashion_mnist,
@@ -153,7 +154,32 @@ class DatasetWrapper:
         # test_data = torch.utils.data.Subset(test_data, test_idxs)
 
         self.is_one_hot = False
-        self.num_classes = 10  # To conserve model architecture
+        self.num_classes = 10  # To conserve model architecture, although only one class is present.
+
+        return train_data, test_data
+
+    def cifar10_doubleclass(self, data_cfg: Optional[Dict] = None, download=True):
+        """Cifar10 dataset with only a single class present"""
+        class_idx = [0, 1]
+        train_tx, test_tx = self._cifar_transforms(data_cfg)
+
+        train_data = datasets.CIFAR10(root=self.data_download_dir, train=True, download=download, transform=train_tx)
+        test_data = datasets.CIFAR10(root=self.data_download_dir, train=False, download=download, transform=test_tx)
+
+        train_data.targets = torch.Tensor(train_data.targets).to(torch.int64)
+        test_data.targets = torch.Tensor(test_data.targets).to(torch.int64)
+
+        train_idxs = sum(train_data.targets == idx for idx in class_idx).bool()
+        test_idxs = sum(test_data.targets == idx for idx in class_idx).bool()
+
+        train_data.data, train_data.targets = train_data.data[train_idxs], train_data.targets[train_idxs]
+        test_data.data, test_data.targets = test_data.data[test_idxs], test_data.targets[test_idxs]
+
+        # train_data = torch.utils.data.Subset(train_data, train_idxs)
+        # test_data = torch.utils.data.Subset(test_data, test_idxs)
+
+        self.is_one_hot = False
+        self.num_classes = 10  # To conserve model architecture, although only two classes are present.
 
         return train_data, test_data
 

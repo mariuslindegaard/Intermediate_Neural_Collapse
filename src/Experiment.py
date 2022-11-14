@@ -123,6 +123,13 @@ class Experiment:
         else:
             start_epoch = 0
 
+        if self.dataset.data_id.lower() == 'cifar10_singleclass':
+            warnings.warn("Hacky cifar singleclass stuff happening")
+            self.dataset.num_classes = 1
+        elif self.dataset.data_id.lower() == 'cifar10_doubleclass':
+            warnings.warn("Hacky cifar doubleclass stuff happening")
+            self.dataset.num_classes = 2
+
         # todo(marius): Implement tensorboard writer (if needed), or just writing to logs.
         pbar_epoch = tqdm.tqdm(range(start_epoch, self.wrapped_optimizer.max_epochs),
                                initial=start_epoch, total=self.wrapped_optimizer.max_epochs,
@@ -195,9 +202,11 @@ def _test():
     import os
     import sys
 
-    config_path = "../config/debug.yaml"
+    # config_path = "../config/debug.yaml"
     # config_path = "../config/resnet.yaml"
-    # config_path = "../config/convnet.yaml"
+    # config_path = "../config/convnet/convnet.yaml"
+    # config_path = "../config/mlp.yaml"
+    config_path = "../logs/matrix/2022-11-03T20:02/convnet_deep/cifar10/config.yaml"
 
     if '/cbcl/cbcl01/lindegrd/miniconda3/envs/' in sys.executable:
         cbcl_base = '/cbcl/cbcl01/lindegrd/NN_layerwise/src/'
