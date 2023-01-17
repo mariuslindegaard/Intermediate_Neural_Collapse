@@ -965,17 +965,17 @@ def main(logs_parent_dir: str):
 
 
 def _test():
-    root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
-
+    # root_dir = '/home/marius/mit/research/NN_layerwise_analysis'
+    save_dir = SaveDirs('logs', timestamp_subdir=False, use_existing=True)
 
     log_dirs = []
-    # log_dirs.append('logs/')
-    # log_dirs.append('logs/matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01')
-    log_dirs.append('logs/matrix/2022-10-11T20:21/mlp')
-    log_dirs.append('logs/matrix/2022-11-03T20:02/convnet_deep')
+    # log_dirs.append('')
+    # log_dirs.append('matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01')
+    # log_dirs.append('matrix/2022-10-11T20:21/mlp')
+    log_dirs.append('matrix/2022-11-03T20:02/')
 
     for log_dir in log_dirs:
-        main(os.path.join(root_dir, log_dir))
+        main(os.path.join(save_dir.base, log_dir))
 
 
 if __name__ == '__main__':

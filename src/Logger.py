@@ -19,7 +19,7 @@ class SaveDirs:
 
         :param dirname: Save-directory path (from project (i.e. git) root directory)
         :param timestamp_subdir: Use subfolder in the save-directory path with timestamp of the run.
-        :param use_existing:
+        :param use_existing: Use already existing logdir if it exists
         """
         # Find root directory
         try:
