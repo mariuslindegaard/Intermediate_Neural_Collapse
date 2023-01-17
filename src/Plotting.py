@@ -256,8 +256,8 @@ class NCPlotter:
         between_trace_sel = df['trace'] == 'between'
         within_trace_sel = df['trace'] == 'within'
         total_trace = df['value'].to_numpy()[total_trace_sel]
-        df.at[between_trace_sel, 'value'] = df['value'].to_numpy()[between_trace_sel] / total_trace
-        df.at[within_trace_sel, 'value'] = df['value'].to_numpy()[within_trace_sel] / total_trace
+        df.loc[between_trace_sel, 'value'] = df['value'].to_numpy()[between_trace_sel] / total_trace
+        df.loc[within_trace_sel, 'value'] = df['value'].to_numpy()[within_trace_sel] / total_trace
 
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection][df[selection]['trace'] != 'sum'], y='value', **plot_config)
@@ -377,7 +377,7 @@ class NCPlotter:
         sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:red')
         sns.lineplot(data=df_sel[sv_after_10], x='layer_name', y='value', hue='sigma_idx', palette='dark:#ADF', legend='brief')
         # plt.legend(title='Sing. val. idx', labels=['First 10', f'11-{max_sv}'])   # TODO(marius): Make legends
-        # sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', label='First 10', color='red', ci=100)
+        # sns.lineplot(data=df_sel[sv_first_10], x='layer_name', y='value', label='First 10', color='red', errorbar=100)
 
 
         plt.yscale('log')
@@ -583,7 +583,7 @@ class NCPlotter:
 
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value_sq_normed_inv', hue='epoch',
-                     ci=None,
+                     errorbar=None,
                      )
 
         plot_utils.capitalize_legend(plt.gca().get_legend())
@@ -632,11 +632,11 @@ class NCPlotter:
 
         # plot_utils.add_nc_line(df, nc_layer)
         # sns.lineplot(data=class_largest_sv_df, x='layer_name', y='value', hue='epoch',
-        #              ci=None,
+        #              errorbar=None,
         #              )
         sns.lineplot(data=sel_df, x='sigma_idx', y='value', hue='epoch',
                      style='layer_name',
-                     ci=None,
+                     errorbar=None,
                      palette=['r', 'p', 'g'],
                      )
 
@@ -677,7 +677,7 @@ class NCPlotter:
 
         plot_utils.add_nc_line(df, nc_layer)
         sns.lineplot(data=df[selection], x='layer_name', y='value', hue='epoch',
-                     ci=None,
+                     errorbar=None,
                      )
 
         plot_utils.capitalize_legend(plt.gca().get_legend())
