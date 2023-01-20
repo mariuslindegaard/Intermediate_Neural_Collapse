@@ -278,8 +278,12 @@ class _ConvBlock(nn.Module):
 def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     model_name: str = model_cfg['model-name'].lower()
 
-    if model_name == 'resnet18':
-        base_model = torchvision.models.resnet18(pretrained=False)
+    if model_name.startswith('resnet'):
+        # Find specified resnet in torchvision.models
+        assert hasattr(torchvision.models, model_name), f"Model type not supported: {model_name}" \
+                                                        f"\nNo such resnet model in torchvision.models"
+        base_model = getattr(torchvision.models, model_name)(pretrained=False)
+
         # Set input channels to match input channels of dataset
         data_input_channels = datasetwrapper.input_batch_shape[1]
         old_layer = base_model.conv1
@@ -292,6 +296,26 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             )
         # Set output to match class number of dataset
         base_model.fc = nn.Linear(in_features=base_model.fc.in_features, out_features=datasetwrapper.num_classes)
+
+    elif model_name.startswith('vgg'):
+        # Find specified vgg in torchvision.models
+        assert hasattr(torchvision.models, model_name), f"Model type not supported: {model_name}" \
+                                                        f"\nNo such VGG model in torchvision.models"
+        base_model = getattr(torchvision.models, model_name)(pretrained=False)
+
+        # Check input channels and change layer if needed
+        data_input_channels = datasetwrapper.input_batch_shape[1]
+        old_layer = base_model.features[0]
+        if old_layer.in_channels != data_input_channels:
+            # base_model.conv1 = nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+            base_model.features[0] = nn.Conv2d(
+                in_channels=data_input_channels,
+                out_channels=old_layer.out_channels, kernel_size=old_layer.kernel_size,
+                stride=old_layer.stride, padding=old_layer.padding, bias=old_layer.bias is not None
+            )
+        # Set output number of classes
+        base_model.classifier[-1] = nn.Linear(in_features=base_model.classifier[-1].in_features,
+                                              out_features=datasetwrapper.num_classes)
 
     elif model_name.startswith('mlp'):
         # Find specified MLP hidden layers
@@ -326,26 +350,6 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             use_batch_norm='_nobn' not in model_name
         )
 
-    elif model_name.startswith('vgg'):
-        # Find specified vgg in torchvision.models
-        assert hasattr(torchvision.models, model_name), f"Model type not supported: {model_name}" \
-                                                        f"\nNo such VGG model in torchvision.models"
-        base_model = getattr(torchvision.models, model_name)(pretrained=False)
-
-        # Check input channels and change layer if needed
-        data_input_channels = datasetwrapper.input_batch_shape[1]
-        old_layer = base_model.features[0]
-        if old_layer.in_channels != data_input_channels:
-            # base_model.conv1 = nn.Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-            base_model.features[0] = nn.Conv2d(
-                in_channels=data_input_channels,
-                out_channels=old_layer.out_channels, kernel_size=old_layer.kernel_size,
-                stride=old_layer.stride, padding=old_layer.padding, bias=old_layer.bias is not None
-            )
-        # Set output number of classes
-        base_model.classifier[-1] = nn.Linear(in_features=base_model.classifier[-1].in_features,
-                                              out_features=datasetwrapper.num_classes)
-
     elif model_name.startswith('convnet'):
         # Find specified convnet filter sizes
         suffix = model_name[7:]
@@ -378,10 +382,10 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
 
     # Set hooked output layers
     out_layers = model_cfg['embedding-layers']
-    # print(base_model)
+    print(base_model)
     ret_model = ForwardHookedOutput(base_model, out_layers, model_name)
-    # print("Tracking layers: ", end='\n\t')
-    # print(*ret_model.output_layers, sep=',\n\t')
+    print("Tracking layers: ", end='\n\t')
+    print(*ret_model.output_layers, sep=',\n\t')
 
     return ret_model
 
