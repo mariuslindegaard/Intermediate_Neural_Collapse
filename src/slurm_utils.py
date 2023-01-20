@@ -236,8 +236,8 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --exclude=node021
 #SBATCH --mem=20000
 #SBATCH --requeue
-#SBATCH --qos=cbmm
-#SBATCH -p cbmm
+# #SBATCH --qos=cbmm
+# #SBATCH -p cbmm
 # #SBATCH --output=./output.log
 
 # #SBATCH --mail-user=lindegrd@mit.edu
