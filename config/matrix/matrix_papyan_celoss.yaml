@@ -1,0 +1,116 @@
+---
+# Neural collapse config file. All must be specified
+Model:
+  model-name: None            # Name of model in "our_models"
+  embedding-layers: None # Intermediate layers to use for NC loss with weightings. "^" used to indicate start of network.
+
+Data:
+  dataset-id: None       # Which dataset-getter to use. Note that shapes are provided by the dataset
+  batch-size: 128        # Mini-batch size
+  do-augmentation: False # Whether to do data augmentation
+
+Optimizer:
+  loss: celoss
+  weight-decay: None     # Weight decay
+  lr: None               # Learning rate
+  lr-decay: 0.1
+  lr-decay-steps: 2      # Number of learning rate decay steps
+  momentum: 0.9          # Optimizer momentum
+  epochs: 350            # Number of epochs to train for
+
+Logging:
+  # When to store weights and calculate measurements
+  save-dir: logs/matrix/papyan_celoss
+  # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
+  # log-epochs: [0, 1, 2, 3, 5, 10, 20, 40, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300]  # Overrides log-interval
+  log-epochs: [0, 1, 10, 100, 200, 300, 350]  # Overrides log-interval
+
+Measurements:
+  measures: None
+
+# Matrix for parsing into multiple configs to run with slurm
+# Parsed as follows:
+## All innermost values (leaves)  must be given in a list.
+## For the current dictionairy level:
+##   Any key other than "_Exclusive" is parsed and the innermost list of that key is used in the matrix.
+##   If the key is _Exclusive, assume mutual exclusivity within the list of its contents,
+##   and choose one of them to parse as another equivalent dictionary of values.
+Matrix:
+  _Exclusive:
+    resnet18:
+      Model:
+        model-name: [resnet18]
+        embedding-layers: [[
+          .conv1, .conv2, .conv3,
+          ^avgpool, ^fc
+        ]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+        # lr: [0.001]
+    resnet50:
+      Model:
+        model-name: [resnet50]
+        embedding-layers: [[
+          .conv1, .conv2, .conv3,
+          ^avgpool, ^fc
+        ]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+        # lr: [0.001]
+    mlp_large:
+      Model:
+        model-name: [mlp_large]
+        embedding-layers: [[fc]]
+      Measurements:
+        measures: [True]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+        # lr: [0.01]
+    mlp_huge:
+      Model:
+        model-name: [mlp_huge]
+        embedding-layers: [[fc]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+        # lr: [0.01]
+    convnet_deep:
+      Model:
+        model-name: [convnet_deep]
+        embedding-layers: [[conv, fc]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [2.e-3, 5.e-4]
+        lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+        # lr: [0.01]
+    convnet_huge:
+      Model:
+        model-name: [convnet_huge]
+        embedding-layers: [[conv, fc]]
+      Measurements:
+        measures: [Fast_StableRank]
+      Optimizer:
+        weight-decay: [5.e-4]
+        lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+        # lr: [0.0025]
+  Data:
+    dataset-id: [cifar10, MNIST, FashionMNIST, svhn]
+    # dataset-id: [MNIST, FashionMNIST, svhn, stl10, cifar10, cifar100]
+  # Optimizer:
+    # lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+    # lr: [0.0001, 0.00014, 0.0002, 0.0003, 0.0004,  # Papyan 2022 original, but too long...
+    #      0.0005, 0.0007, 0.0010, 0.0013, 0.0020,
+    #      0.0026, 0.0036, 0.0050, 0.0070, 0.0096,
+    #      0.0130, 0.0180, 0.0250, 0.0350, 0.0500,
+    #      0.0680, 0.1000, 0.1300, 0.1800, 0.2500]
+...

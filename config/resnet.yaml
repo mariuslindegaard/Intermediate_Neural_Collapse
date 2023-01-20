@@ -5,10 +5,7 @@ Model:
   embedding-layers: [         # Intermediate layers to use for NC loss with weightings. "^" used to indicate start of network.
     # ^conv1,
     # ^bn1, ^relu, ^maxpool,
-    ^layer1.0.conv1, ^layer1.0.conv2, ^layer1.1.conv1, ^layer1.1.conv2,
-    ^layer2.0.conv1, ^layer2.0.conv2, ^layer2.1.conv1, ^layer2.1.conv2,
-    ^layer3.0.conv1, ^layer3.0.conv2, ^layer3.1.conv1, ^layer3.1.conv2,
-    ^layer4.0.conv1, ^layer4.0.conv2, ^layer4.1.conv1, ^layer4.1.conv2,
+    .conv1, .conv2, .conv3,
     ^avgpool, ^fc
     ]
 
