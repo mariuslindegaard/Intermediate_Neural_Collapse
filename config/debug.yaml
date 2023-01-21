@@ -1,15 +1,16 @@
 ---
 # Neural collapse config file. All must be specified
 Model:
-  model-name: vgg11_bn            # Name of model in "Models.py"
+  model-name: mlp    # Name of model in "Models.py"
   embedding-layers: [
-    features.0, features.3,
-    features.4, features.7,
-    features.8, features.11, features.14,
-    features.15, features.18, features.21,
-    features.22, features.25, features.28,
-    avgpool,
-    classifier.0, classifier.3, classifier.6,
+                      fc
+    # features.0, features.3,
+    # features.4, features.7,
+    # features.8, features.11, features.14,
+    # features.15, features.18, features.21,
+    # features.22, features.25, features.28,
+    # avgpool,
+    # classifier.0, classifier.3, classifier.6,
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
@@ -20,11 +21,12 @@ Data:
 Optimizer:
   loss: mseloss
   weight-decay: 5.e-4    # Weight decay
-  lr: 0.002              # Learning rate
+  lr: 0.003              # Learning rate
   lr-decay: 0.2
   lr-decay-steps: 1      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
-  epochs: 10              # Number of epochs to train for
+  epochs: 10             # Number of epochs to train for
+  warmup_epochs: 0       # Number of epochs to do linear lr-warmup for
 
 Logging:
   # When to store weights and calculate measurements

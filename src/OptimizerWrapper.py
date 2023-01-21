@@ -12,6 +12,7 @@ class OptimizerWrapper(torch.nn.Module):
     optimizer: torch.optim.Optimizer  # <- Optimizer
     lr_scheduler: object  # <- learning rate scheduler
     max_epochs: int
+    num_warmup_epochs: int
     # epoch: int
 
     _criterions = dict(
@@ -41,5 +42,7 @@ class OptimizerWrapper(torch.nn.Module):
                                                                  milestones=epochs_lr_decay,
                                                                  gamma=optimizer_cfg['lr-decay'])
 
-        self.max_epochs = optimizer_cfg['epochs']
+        self.max_epochs = int(optimizer_cfg['epochs'])
+
+        self.num_warmup_epochs = int(optimizer_cfg.get('warmup_epochs', 0))
 

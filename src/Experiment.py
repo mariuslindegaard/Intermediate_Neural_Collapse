@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import tqdm
 import yaml
 from collections import OrderedDict
@@ -73,8 +73,13 @@ class Experiment:
         print(f'Measuring: {list(self.measures.keys())}')
         print(f'Saving to {self.logger.save_dirs.base}')
 
-    def _train_single_epoch(self):
-        """Train the model on the specified dataset"""
+    def _train_single_epoch(self, linear_warmup: Optional[Tuple[float, float]] = None) -> float:
+        """Train the model on the specified dataset
+
+        :param linear_warmup: If specified, will use warmup reduction on learning rate.
+             Tuple (a, b) gives lr = lr * (a + (b-a)*(batch_idx+1)/num_batches))
+        :return: Accuracy on train data
+        """
         device = next(iter(self.wrapped_model.parameters())).device
         self.wrapped_model.train()
 
@@ -94,7 +99,12 @@ class Experiment:
             optimizer.zero_grad()
             preds, embeddings = self.wrapped_model(inputs)
             loss: torch.Tensor = loss_function(preds, targets)
-            loss.backward()
+            if linear_warmup:  # If warmup, reduce loss in place of reducing lr
+                warmup_lr_factor = linear_warmup[0] + (linear_warmup[1] - linear_warmup[0]) * (batch_index + 1) / len(self.dataset.train_loader)
+                (loss * warmup_lr_factor).backward()  # Multiply loss by factor < 1 if doing warmup. 1 if not warmup
+            else:
+                warmup_lr_factor = 1
+                loss.backward()
             optimizer.step()
             # optimizer.zero_grad()
 
@@ -103,7 +113,8 @@ class Experiment:
 
             correct = torch.argmax(preds, dim=-1).eq(targets_class_idx).sum().item()
 
-            pbar_batch.set_description(f'Loss: {loss.item():5.3E}  LR: {optimizer.param_groups[0]["lr"]:.2G} Acc: {correct/len(inputs): <6.3G}')
+            pbar_batch.set_description(f'Loss: {loss.item():5.3E}  LR: {optimizer.param_groups[0]["lr"] * warmup_lr_factor:.2G} '
+                                       f'Acc: {correct/len(inputs): <6.3G}')
             tot_correct += correct
             tot_samples += len(inputs)
 
@@ -140,7 +151,14 @@ class Experiment:
             if epoch in self.logger.log_epochs:
                 self.logger.save_model(self.wrapped_model, epoch, wrapped_optimizer=self.wrapped_optimizer)
 
-            epoch_acc = self._train_single_epoch()
+            # If in warmup epochs, do linear epochs (from epoch 0 to num_warmup_epochs)
+            if self.wrapped_optimizer.num_warmup_epochs > epoch:
+                linear_warmup = (epoch / self.wrapped_optimizer.num_warmup_epochs,
+                                 (epoch+1) / self.wrapped_optimizer.num_warmup_epochs)
+            else:
+                linear_warmup = None
+
+            epoch_acc = self._train_single_epoch(linear_warmup=linear_warmup)
 
             pbar_epoch.set_description(f'Epoch, Acc: {epoch_acc: <6.3G}')
             self.wrapped_optimizer.lr_scheduler.step()

@@ -17,6 +17,7 @@ Optimizer:
   lr-decay-steps: 2      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
   epochs: 350            # Number of epochs to train for
+  warmup_epochs: 1       # Number of epochs to do linear lr-warmup for
 
 Logging:
   # When to store weights and calculate measurements
