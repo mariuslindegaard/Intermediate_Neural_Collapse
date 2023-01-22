@@ -172,6 +172,8 @@ class NCPlotter:
                 # title = plot_utils.get_title_from_path(savedir.base)
                 # plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
                 # Add Dataset to title
+                if 'cifar100' in savedir.base.lower():
+                    title = 'CIFAR100'
                 if 'cifar10' in savedir.base.lower():
                     title = 'CIFAR10'
                 elif 'fashionmnist' in savedir.base.lower():
@@ -180,8 +182,11 @@ class NCPlotter:
                     title = 'MNIST'
                 elif 'svhn' in savedir.base.lower():
                     title = 'SVNH'
+                elif 'stl10' in savedir.base.lower():
+                    title = 'STL-10'
                 else:
                     title = 'OtherData'
+
                 # Add model to title
                 if 'mlp' in savedir.base.lower():
                     title = "MLP: " + title
@@ -191,6 +196,10 @@ class NCPlotter:
                     title = "Convnet huge: " + title
                 elif 'resnet18' in savedir.base.lower():
                     title = "Resnet18: " + title
+                elif 'resnet34' in savedir.base.lower():
+                    title = "Resnet34: " + title
+                elif 'resnet50' in savedir.base.lower():
+                    title = "Resnet50: " + title
                 elif 'vgg16_bn' in savedir.base.lower():
                     title = "VGG16: " + title
                 else:
@@ -207,7 +216,7 @@ class NCPlotter:
                         steps_per_visual_tick = 1+((len(xticks)-1) // max_ticks)
                         new_xticks = []
                         for idx, tickname in enumerate(xticks):
-                            new_xticks.append(tickname if (idx+1) % steps_per_visual_tick else '')
+                            new_xticks.append(tickname if (idx % steps_per_visual_tick) == 0 else '')
                         ax.set_xticks(ax.get_xticks())
                         ax.set_xticklabels(new_xticks)
                 plt.tight_layout(pad=0.2)
@@ -980,14 +989,15 @@ def _test():
     save_dir = SaveDirs('logs', timestamp_subdir=False, use_existing=True)
 
     log_dirs = []
-    log_dirs.append('matrix/default_2')
-    # log_dirs.append('matrix/2022-11-03T20:02/')
-    # log_dirs.append('matrix/2023-01-17T04:08')
     # log_dirs.append('matrix/default_2')
-    # log_dirs.append('matrix/papyan')
-    # log_dirs.append('matrix/papyan_mseloss')
+    log_dirs.append('matrix/papyan_mseloss')
+    log_dirs.append('matrix/papyan')
+    log_dirs.append('matrix/default_2')
+    log_dirs.append('matrix/2022-11-03T20:02/')
+    log_dirs.append('matrix/2023-01-17T04:08')
 
     for log_dir in log_dirs:
+        print('-'*32, f'Checking logdir: {log_dir}', '-'*32, sep='\n')
         main(os.path.join(save_dir.base, log_dir))
 
 
