@@ -97,8 +97,8 @@ class plot_utils:
         measure_df['layer_name'] = measure_df['layer_name'].astype(pd.api.types.CategoricalDtype()).cat.set_categories(layer_order, ordered=True)
 
         last_epoch = measure_df['epoch'].max()
-        if last_epoch != 300:
-            warnings.warn(f"Last epoch is not 300 but {last_epoch}. Make sure this does not break the plot.")
+        if last_epoch != max(NCPlotter.standard_epochs):
+            warnings.warn(f"Last epoch is not {max(NCPlotter.standard_epochs)} but {last_epoch}. Make sure this does not break the plot.")
         # layer_map = {layer_name: idx for idx, layer_name in enumerate(measure_df['layer_name'].unique())}
 
         satisfies_collapse = condition(measure_df)
@@ -138,7 +138,7 @@ class plot_utils:
 
 
 class NCPlotter:
-    standard_epochs = [10, 100, 300]
+    standard_epochs = [10, 100, 350]
     # standard_epochs = set(range(0, 601))
 
     @classmethod
@@ -441,7 +441,7 @@ class NCPlotter:
 
         eval_rank = 10
 
-        selection = df['epoch'].isin([0, 300])
+        selection = df['epoch'].isin([0, max(NCPlotter.standard_epochs)])
         # selection = df['epoch'].isin([0, 1, 2, 3])
         # selection = df['epoch'].isin(NCPlotter.standard_epochs)
         selection &= df['layer_name'] != 'model'
@@ -991,13 +991,13 @@ def _test():
     log_dirs = []
     # log_dirs.append('matrix/default_2')
     log_dirs.append('matrix/papyan_mseloss')
-    log_dirs.append('matrix/papyan')
     log_dirs.append('matrix/default_2')
     log_dirs.append('matrix/2022-11-03T20:02/')
     log_dirs.append('matrix/2023-01-17T04:08')
+    log_dirs.append('matrix/papyan')
 
     for log_dir in log_dirs:
-        print('-'*32, f'Checking logdir: {log_dir}', '-'*32, sep='\n')
+        print('-'*32, f'Checking logdir: logs/{log_dir}', '-'*32, sep='\n')
         main(os.path.join(save_dir.base, log_dir))
 
 
