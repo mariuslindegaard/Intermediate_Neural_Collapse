@@ -131,6 +131,11 @@ class plot_utils:
     def get_xticks(layer_names: pd.Series):
         return layer_names.cat.codes.unique()
 
+    @staticmethod
+    def get_title_from_path(path: str):
+        raise NotImplementedError()
+        pass
+
 
 class NCPlotter:
     standard_epochs = [10, 100, 300]
@@ -164,6 +169,7 @@ class NCPlotter:
                     warnings.warn("Plotting failed")
                     continue
 
+                # title = plot_utils.get_title_from_path(savedir.base)
                 # plt.suptitle(f"{measure} for \n{os.path.relpath(savedir.base, savedir.root_dir)}")
                 # Add Dataset to title
                 if 'cifar10' in savedir.base.lower():
@@ -192,13 +198,16 @@ class NCPlotter:
 
                 plt.suptitle(title, y=0.99)
                 if PRETTY_OUT:
+                    # Make sure there are no more than 'max_ticks' ticks visualized in the plot
+                    max_ticks = 15
                     # plt.gca().tick_params(axis='x', labelsize=10)
                     ax = plt.gca()
                     xticks = ax.get_xticklabels()
-                    new_xticks = []
-                    for idx, tickname in enumerate(xticks):
-                        new_xticks.append(tickname if (idx+1) % 2 else '')
-                    if len(xticks) > 15 and measure != 'Accuracy':
+                    if len(xticks) > max_ticks and measure != 'Accuracy':
+                        steps_per_visual_tick = 1+((len(xticks)-1) // max_ticks)
+                        new_xticks = []
+                        for idx, tickname in enumerate(xticks):
+                            new_xticks.append(tickname if (idx+1) % steps_per_visual_tick else '')
                         ax.set_xticks(ax.get_xticks())
                         ax.set_xticklabels(new_xticks)
                 plt.tight_layout(pad=0.2)
@@ -971,11 +980,12 @@ def _test():
     save_dir = SaveDirs('logs', timestamp_subdir=False, use_existing=True)
 
     log_dirs = []
-    # log_dirs.append('')
-    # log_dirs.append('matrix/convnet/2022-10-24T17:20/convnet_deep/cifar10/lr_0.01')
-    # log_dirs.append('matrix/2022-10-11T20:21/mlp')
-    # log_dirs.append('matrix/2022-11-03T20:02/')
     log_dirs.append('matrix/default_2')
+    # log_dirs.append('matrix/2022-11-03T20:02/')
+    # log_dirs.append('matrix/2023-01-17T04:08')
+    # log_dirs.append('matrix/default_2')
+    # log_dirs.append('matrix/papyan')
+    # log_dirs.append('matrix/papyan_mseloss')
 
     for log_dir in log_dirs:
         main(os.path.join(save_dir.base, log_dir))
