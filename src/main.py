@@ -24,7 +24,7 @@ def main(config_file_path: str, parse_and_submit_to_slurm: bool, use_timestamp_w
         print(f"Parsing matrix config at {config_file_path} and submitting to slurm.")
         configs_with_path, parent_savedir = slurm_utils.parse_config_matrix(config_file_path)
         if slurm_dry_run:
-            print("\nDoing dry-run: Not submitting to slurm nor creating savedirs.")
+            print(f'\nDoing dry-run: Not submitting to slurm nor creating savedirs: {len(configs_with_path)} jobs.')
             return
         base_savedir = Logger.SaveDirs(parent_savedir, timestamp_subdir=use_timestamp_with_slurm)
 

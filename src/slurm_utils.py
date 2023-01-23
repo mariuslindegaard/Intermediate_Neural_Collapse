@@ -65,6 +65,8 @@ def _path_amendment(x: Dict[str, Any], key: str) -> str:
     #     return "m"
     if key.lower() in ('dataset-id', 'model-name'):
         return str(x[key])
+    elif key.lower() == 'weight-decay':
+        return f'wd_{x[key]}'
     else:
         return f'{key}_{x[key]}'
 
@@ -236,8 +238,8 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --exclude=node021
 #SBATCH --mem=20000
 #SBATCH --requeue
-# #SBATCH --qos=cbmm
-# #SBATCH -p cbmm
+#SBATCH --qos=cbmm
+#SBATCH -p cbmm
 # #SBATCH --output=./output.log
 
 # #SBATCH --mail-user=lindegrd@mit.edu
