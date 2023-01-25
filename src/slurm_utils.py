@@ -238,29 +238,28 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --exclude=node021
 #SBATCH --mem=20000
 #SBATCH --requeue
-#SBATCH --qos=cbmm
-#SBATCH -p cbmm
+# #SBATCH --qos=cbmm  # TODO(marius): Remove cbmm-identifier for submission
+# #SBATCH -p cbmm
 # #SBATCH --output=./output.log
 
-# #SBATCH --mail-user=lindegrd@mit.edu
+# #SBATCH --mail-user=lindegrd@mit.edu  # TODO(marius): Remove email identifier
 # #SBATCH --mail-type=ALL
 
 # memory 1000 MiB
 # gpu_mem 10904 MiB
 
 # Execute with:
-#     sbatch --array=start_idx-stop_idx --export=configs_path_dir=path_before_idx_dot_sh this_file.sh
+#     sbatch --array=start_idx-stop_idx --export=configs_path_dir=dir_containing_idx_dot_sh this_file.sh
+#   For example, with the standard config and a total of 12 jobs when in the __slurm directory:
+#     sbatch --array=0-11 --export=configs_path_dir=jobs execute_array.sh
 
 date;hostname;id;pwd
 echo
-echo "running script ${configs_path_dir}/${SLURM_ARRAY_TASK_ID}.sh"
+echo "running script ${SLURM_ARRAY_TASK_ID}.sh in ${configs_path_dir}"
 
 cd "${configs_path_dir}"
 chmod +x "${SLURM_ARRAY_TASK_ID}.sh"
 srun -n 1 "${SLURM_ARRAY_TASK_ID}.sh"
-
-# chmod +x "${configs_path_dir}${SLURM_ARRAY_TASK_ID}.sh"
-# srun -n 1 "${configs_path_dir}${SLURM_ARRAY_TASK_ID}.sh"
 '''
 
 _SBATCH_SCRIPT_EXECUTE_COMMAND = \
