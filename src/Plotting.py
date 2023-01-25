@@ -29,40 +29,46 @@ class plot_utils:
             :param recurse: Recurse downwards through filepaths. Default False
             :return: An iterator over paths to directories matching this required config.
             """
-        dirs = sorted(map(lambda d: d.path, filter(lambda d: d.is_dir(), os.scandir(base_dir))))
 
-        for run_dirname in dirs:
-            if run_dirname.endswith('latest') or os.path.split(run_dirname)[-1][0] == '.':
-                continue
-            cfg_path = os.path.join(base_dir, run_dirname, 'config.yaml')
-            try:
-                with open(cfg_path, 'r') as config_file:
-                    config_params = yaml.safe_load(config_file)
-            except FileNotFoundError as e:  # If there is not immediate config file, either recurse or
-                if recurse:
-                    for child_dir in plot_utils.filter_configs(base_dir=os.path.join(base_dir, run_dirname), required_params=required_params, recurse=recurse):
-                        yield child_dir
-                continue
+        try:
+            cfg_path = os.path.join(base_dir, 'config.yaml')
+            with open(cfg_path, 'r') as config_file:
+                config_params = yaml.safe_load(config_file)
 
-            # Assuming all config files are two layers deep (max)
             # Check if required_params is a subset of config_params
-            for key, val in config_params.items():
-                if key not in required_params.keys():
-                    continue
+            if plot_utils.config_contains(config_params, required_params):
+                yield base_dir
 
-                if type(val) is dict:
-                    if required_params[key].items() <= val.items():
-                        continue
-                    else:
-                        break
+        except FileNotFoundError as e:  # If there is not immediate config file, either recurse or
+            dirs = sorted(map(lambda d: d.path, filter(lambda d: d.is_dir(), os.scandir(base_dir))))
+            for run_dirname in dirs:
+                if run_dirname.endswith('latest') or os.path.split(run_dirname)[-1][0] == '.':
+                    continue
+            if recurse:
+                for child_dir in plot_utils.filter_configs(base_dir=os.path.join(base_dir, run_dirname),
+                                                           required_params=required_params, recurse=recurse):
+                    yield child_dir
+
+    @staticmethod
+    def config_contains(config_params: dict, required_params: dict) -> bool:
+        """Find wether all of 'required_params' exist and are equal in 'config_params'"""
+        # TODO: More testing of this to ensure it always works
+        for key, val in required_params.items():
+            if key not in config_params.keys():
+                return False
+
+            if isinstance(val, dict):
+                if isinstance(config_params[key], dict) and plot_utils.config_contains(config_params[key], val):
+                    continue
                 else:
-                    if required_params[key] == val:
-                        continue
-                    else:
-                        break
-            else:  # Runs if no break
-                run_dir = os.path.join(base_dir, run_dirname)
-                yield run_dir
+                    return False
+            else:
+                if required_params[key] == val:
+                    continue
+                else:
+                    return False
+
+        return True
 
     @staticmethod
     def add_nc_line(df: pd.DataFrame, nc_layer_name: Optional[str]):
@@ -144,6 +150,7 @@ class NCPlotter:
     @classmethod
     def plot_runs(cls, base_dir, run_config_params):
         """The base plotting function to copy and modify."""
+        sns.set_theme(style='darkgrid')
 
         for run_dir in plot_utils.filter_configs(base_dir, run_config_params):
             print(f"\nPlotting {run_dir}:")
@@ -971,7 +978,6 @@ def plot_approx_rank(base_dir, run_config_params):
 
 def main(logs_parent_dir: str):
     """Run some standard plotting on the measurements. Prone to failure!!!"""
-    sns.set_theme(style='darkgrid')
     run_config_params = dict(  # All parameters must match what is given here.
         # Model={'model-name': 'convnet_deep'},
         # Data={'dataset-id': 'cifar10'},
