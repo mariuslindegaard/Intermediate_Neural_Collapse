@@ -1,0 +1,51 @@
+---
+# Neural collapse config file. All must be specified
+Model:
+  model-name: resnet50            # Name of model in "our_models"
+  embedding-layers: [  # Intermediate layers to use for NC loss with weightings. "^" used to indicate start of network.
+    .conv1, .conv2, .conv3,
+    ^avgpool, ^fc
+  ]
+
+Data:
+  dataset-id: CIFAR10       # Which dataset-getter to use. Note that shapes are provided by the dataset
+  batch-size: 128        # Mini-batch size
+  do-augmentation: False # Whether to do data augmentation
+
+Optimizer:
+  loss: mseloss
+  weight-decay: 5.e-4    # Weight decay
+  lr: None               # Learning rate
+  lr-decay: 0.1
+  lr-decay-steps: 2      # Number of learning rate decay steps
+  momentum: 0.9          # Optimizer momentum
+  epochs: 350            # Number of epochs to train for
+  warmup_epochs: 1       # Number of epochs to do linear lr-warmup for
+
+Logging:
+  # When to store weights and calculate measurements
+  save-dir: logs/matrix/papyan_mseloss/resnet50_cifar10_reruns
+  # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
+  log-epochs: [0, 1, 2, 3, 5, 10, 20, 40, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350]  # Overrides log-interval
+  # log-epochs: [0, 1, 10, 100, 200, 300, 350]  # Overrides log-interval
+
+Measurements:
+  measures: Fast_StableRank
+
+Run:
+  run: None
+
+# Matrix for parsing into multiple configs to run with slurm
+# Parsed as follows:
+## All innermost values (leaves)  must be given in a list.
+## For the current dictionairy level:
+##   Any key other than "_Exclusive" is parsed and the innermost list of that key is used in the matrix.
+##   If the key is _Exclusive, assume mutual exclusivity within the list of its contents,
+##   and choose one of them to parse as another equivalent dictionary of values.
+Matrix:
+  Optimizer:
+    # lr: [0.05, 0.07, 0.01, 0.014, 0.02, 0.03, 0.05, 0.07, 0.1]        # Learning rate
+    lr: [0.05, 0.03, 0.02, 0.014, 0.01, 0.07, 0.1, 0.07, 0.05]        # Learning rate
+  Run:
+    run: [0, 1]
+...
