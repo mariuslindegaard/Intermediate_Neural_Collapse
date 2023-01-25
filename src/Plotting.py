@@ -144,7 +144,7 @@ class plot_utils:
 
 
 class NCPlotter:
-    standard_epochs = [10, 100, 600]
+    standard_epochs = [10, 100, 350]
     # standard_epochs = set(range(0, 601))
 
     @classmethod
@@ -181,7 +181,7 @@ class NCPlotter:
                 # Add Dataset to title
                 if 'cifar100' in savedir.base.lower():
                     title = 'CIFAR100'
-                if 'cifar10' in savedir.base.lower():
+                elif 'cifar10' in savedir.base.lower():
                     title = 'CIFAR10'
                 elif 'fashionmnist' in savedir.base.lower():
                     title = 'FashionMNIST'
