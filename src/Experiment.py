@@ -170,7 +170,7 @@ class Experiment:
         model_path_list = self.logger.get_all_saved_model_paths()
 
         # Set which checkpoints to do measurements on first, if they are in the list of checkpoints.
-        priority_checkpoints = [600, 300, 100, 10, 1, 0]
+        priority_checkpoints = [600, 350, 300, 100, 10, 1, 0]
         for epoch in reversed(priority_checkpoints):
             for path in model_path_list:
                 if path.endswith(f'{epoch:0>3}.tar'):
@@ -220,11 +220,7 @@ def _test():
     import os
     import sys
 
-    # config_path = "../config/debug.yaml"
-    # config_path = "../config/resnet.yaml"
-    # config_path = "../config/convnet/convnet.yaml"
-    # config_path = "../config/mlp.yaml"
-    config_path = "../logs/matrix/2022-11-03T20:02/convnet_deep/cifar10/config.yaml"
+    config_path = "../config/debug.yaml"
 
     if '/cbcl/cbcl01/lindegrd/miniconda3/envs/' in sys.executable:
         cbcl_base = '/cbcl/cbcl01/lindegrd/NN_layerwise/src/'

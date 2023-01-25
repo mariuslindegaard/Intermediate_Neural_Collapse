@@ -138,7 +138,7 @@ class plot_utils:
 
 
 class NCPlotter:
-    standard_epochs = [10, 100, 350]
+    standard_epochs = [10, 100, 600]
     # standard_epochs = set(range(0, 601))
 
     @classmethod
@@ -292,7 +292,9 @@ class NCPlotter:
             plt.xticks(rotation=0)
         plt.ylabel('Relative Trace')
 
-        axes[1].get_legend().remove()
+        legend = axes[1].get_legend()
+        if legend is not None:
+            legend.remove()
 
         return axes
 
@@ -358,8 +360,12 @@ class NCPlotter:
                 plt.gca().set_xticklabels(plot_utils.get_xticks(df[selection]['layer_name']))
             plt.xticks(rotation=0)
 
-        axes[0].get_legend().remove()
-        axes[2].get_legend().remove()
+        legend0 = axes[0].get_legend()
+        legend2 = axes[2].get_legend()
+        if legend0 is not None:
+            legend0.remove()
+        if legend2 is not None:
+            legend2.remove()
 
         return axes
 
@@ -422,7 +428,6 @@ class NCPlotter:
         # texts = [plt.Text(0, 0, str(i)) for i in [0, 10, 11, 30]]
         plt.legend(handles=handles, labels=labels, title="SV idx $i$")
 
-        # axes[0].get_legend().remove()
 
         return axes
 
@@ -991,10 +996,14 @@ def _test():
     log_dirs = []
     # log_dirs.append('matrix/default_2')
     log_dirs.append('matrix/papyan_mseloss')
-    log_dirs.append('matrix/default_2')
-    log_dirs.append('matrix/2022-11-03T20:02/')
-    log_dirs.append('matrix/2023-01-17T04:08')
-    log_dirs.append('matrix/papyan')
+    # log_dirs.append('matrix/default_2')
+    # log_dirs.append('matrix/2022-11-03T20:02/')
+    # log_dirs.append('matrix/2023-01-17T04:08')
+    # log_dirs.append('matrix/papyan')
+    # log_dirs.append('matrix/customnets')
+    # log_dirs.append('matrix/customnets_param_search')
+    # log_dirs.append('_archive')
+    # log_dirs.append('_archive/_old_2022-11-03/matrix/convnet/2022-10-21T16:10/convnet_deep')
 
     for log_dir in log_dirs:
         print('-'*32, f'Checking logdir: logs/{log_dir}', '-'*32, sep='\n')
