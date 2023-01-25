@@ -39,15 +39,15 @@ class plot_utils:
             if plot_utils.config_contains(config_params, required_params):
                 yield base_dir
 
-        except FileNotFoundError as e:  # If there is not immediate config file, either recurse or
+        except FileNotFoundError as e:  # If there is no immediate config file, either recurse or
             dirs = sorted(map(lambda d: d.path, filter(lambda d: d.is_dir(), os.scandir(base_dir))))
             for run_dirname in dirs:
                 if run_dirname.endswith('latest') or os.path.split(run_dirname)[-1][0] == '.':
                     continue
-            if recurse:
-                for child_dir in plot_utils.filter_configs(base_dir=os.path.join(base_dir, run_dirname),
-                                                           required_params=required_params, recurse=recurse):
-                    yield child_dir
+                if recurse:
+                    for child_dir in plot_utils.filter_configs(base_dir=os.path.join(base_dir, run_dirname),
+                                                               required_params=required_params, recurse=recurse):
+                        yield child_dir
 
     @staticmethod
     def config_contains(config_params: dict, required_params: dict) -> bool:
@@ -188,7 +188,7 @@ class NCPlotter:
                 elif 'mnist' in savedir.base.lower():
                     title = 'MNIST'
                 elif 'svhn' in savedir.base.lower():
-                    title = 'SVNH'
+                    title = 'SVHN'
                 elif 'stl10' in savedir.base.lower():
                     title = 'STL-10'
                 else:
@@ -1001,7 +1001,8 @@ def _test():
 
     log_dirs = []
     # log_dirs.append('matrix/default_2')
-    log_dirs.append('matrix/papyan_mseloss')
+    log_dirs.append('matrix/papyan_mseloss/resnet50_cifar10_reruns')
+    log_dirs.append('matrix/papyan_mseloss/resnet50_cifar_reruns')
     # log_dirs.append('matrix/default_2')
     # log_dirs.append('matrix/2022-11-03T20:02/')
     # log_dirs.append('matrix/2023-01-17T04:08')
