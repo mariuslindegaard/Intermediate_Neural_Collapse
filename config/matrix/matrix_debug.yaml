@@ -16,7 +16,7 @@ Optimizer:
   lr-decay: 0.2
   lr-decay-steps: 3      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
-  epochs: 2            # Number of epochs to train for
+  epochs: 2              # Number of epochs to train for
   warmup_epochs: 0       # Number of epochs to do linear lr-warmup for
 
 Logging:
@@ -37,49 +37,55 @@ Measurements:
 ##   and choose one of them to parse as another equivalent dictionary of values.
 Matrix:
   _Exclusive:
-    resnet18:
-      Model:
-        model-name: [resnet18]
-        embedding-layers: [[
-          # ^conv1, ^bn1, ^relu, ^maxpool,
-          ^layer1.0, ^layer1.1,
-          ^layer2.0, ^layer2.1,
-          ^layer3.0, ^layer3.1,
-          ^layer4.0, ^layer4.1,
-          ^avgpool, ^fc
-        ]]
+    # resnet18:
+    #   Model:
+    #     model-name: [resnet18]
+    #     embedding-layers: [[
+    #       # ^conv1, ^bn1, ^relu, ^maxpool,
+    #       ^layer1.0, ^layer1.1,
+    #       ^layer2.0, ^layer2.1,
+    #       ^layer3.0, ^layer3.1,
+    #       ^layer4.0, ^layer4.1,
+    #       ^avgpool, ^fc
+    #     ]]
     mlp:
       Model:
-        model-name: [mlp, mlp_nobn, mlp_large]
+        model-name: [mlp_small, mlp_single]
         # model-name: [mlp, mlp_nobn, mlp_large, mlp_large_nobn, mlp_wide, mlp_wide_nobn, mlp_xwide, mlp_xwide_nobn]
         embedding-layers: [[fc]]
-    vgg16:
+    linear:
       Model:
-        model-name: [vgg16]
-        embedding_layers: [[
-          features.0, features.2, features.4,
-          features.5, features.7, features.9,
-          features.10, features.12, features.14, features.16,
-          features.17, features.19, features.21, features.23,
-          features.24, features.26, features.28, features.30,
-          avgpool,
-          classifier.0, classifier.3, classifier.6,
-        ]]
-    vgg16_bn:
-      Model:
-        model-name: [vgg16_bn]
-        embedding_layers: [[
-          features.0, features.3, features.6,
-          features.7, features.10, features.13,
-          features.14, features.17, features.20, features.23,
-          features.24, features.27, features.30, features.33,
-          features.34, features.37, features.40, features.43,
-          avgpool,
-          classifier.0, classifier.3, classifier.6,
-        ]]
+        model-name: [mlp_linear]
+        embedding-layers: [True]
+    # vgg16:
+    #   Model:
+    #     model-name: [vgg16]
+    #     embedding_layers: [[
+    #       features.0, features.2, features.4,
+    #       features.5, features.7, features.9,
+    #       features.10, features.12, features.14, features.16,
+    #       features.17, features.19, features.21, features.23,
+    #       features.24, features.26, features.28, features.30,
+    #       avgpool,
+    #       classifier.0, classifier.3, classifier.6,
+    #     ]]
+    # vgg16_bn:
+    #   Model:
+    #     model-name: [vgg16_bn]
+    #     embedding_layers: [[
+    #       features.0, features.3, features.6,
+    #       features.7, features.10, features.13,
+    #       features.14, features.17, features.20, features.23,
+    #       features.24, features.27, features.30, features.33,
+    #       features.34, features.37, features.40, features.43,
+    #       avgpool,
+    #       classifier.0, classifier.3, classifier.6,
+    #     ]]
   Data:
-    dataset-id: [MNIST, cifar10]
+    dataset-id: [MNIST_debug]
     # dataset-id: [MNIST, FashionMNIST, cifar10, svhn, stl10, cifar100]
   Measurements:
-    measures: [Fast]
+    measures: [[Accuracy]]
+  Optimizer:
+    lr: [0.01, 0.02]
 ...
