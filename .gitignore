@@ -14,6 +14,9 @@ logs/
 [._]ss[a-gi-z]
 [._]sw[a-p]
 
+# OSX-stuff:
+**/.DS_Store
+
 # <<< My ignores
 
 
