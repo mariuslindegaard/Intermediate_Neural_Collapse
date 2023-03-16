@@ -21,16 +21,35 @@ class ForwardHookedOutput(nn.Module):
         # Output hooks
         self.output_layers = []
         self.fwd_hooks = []
-        self.hook_out = OrderedDict()
         self._module_to_layer_name = {}  # Mapping of modules to layername
 
+        # Storage for last fwd pass hooks
+        self.hook_out = OrderedDict()
+
         # Register hooks
+        self.register_hooks(output_layers_specification)
+
+    def register_hooks(self, output_layers_specification: Union[Tuple[Hashable], List[Hashable], bool],
+                       reset=True) -> List[str]:
+        """Register the forward hooks for the network.
+
+        :param output_layers_specification:
+        :param reset: Whether to remove old hooks or just add new ones. Default: True
+        :returns: self.output_layers, module names of all registered hooks.
+        """
+        if reset:
+            self.output_layers = []
+            self.fwd_hooks = []
+            self._module_to_layer_name = {}  # Mapping of modules to layername
+
         for module_name, module in utils.filter_all_named_modules(self.base_model, output_layers_specification):
             self._module_to_layer_name[module] = module_name
             self.fwd_hooks.append(
                 module.register_forward_hook(self.hook)
             )
             self.output_layers.append(module_name)
+
+        return self.output_layers
 
     def hook(self, module, inputs, outputs):
         layer_name = self._module_to_layer_name[module]
