@@ -47,6 +47,8 @@ class DatasetWrapper:
             raise NotImplementedError(f"Dataset with id '{self.data_id}' is not implemented. "
                                       f"Id must be one of \n{id_mapping.keys()}")
 
+        # TODO(marius): Implement check that the "dataset" dir exists, and recommend setting a symlink to the root directory of the repo.
+
         # Prepeare datset
         train_data, test_data = id_mapping[self.data_id.lower()](self, data_cfg, *args, **kwargs)
 
@@ -233,8 +235,11 @@ class DatasetWrapper:
         else:
             train_tx = test_tx
 
-        train_data = datasets.ImageNet(root=self.data_download_dir, train=True, download=download, transform=train_tx)
-        test_data = datasets.ImageNet(root=self.data_download_dir, train=False, download=download, transform=test_tx)
+        # import pdb; pdb.set_trace()
+        train_data = datasets.ImageNet(root=self.data_download_dir, train=True,  # download=False,
+                                       transform=train_tx)
+        test_data = datasets.ImageNet(root=self.data_download_dir, train=False,  # download=download,
+                                      transform=test_tx)
         self.is_one_hot = False
         self.num_classes = 1000
 
