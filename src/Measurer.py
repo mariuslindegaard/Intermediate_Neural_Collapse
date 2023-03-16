@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse.linalg
 import tqdm
-import tensorly.decomposition
+# import tensorly.decomposition
 
 from collections import defaultdict, OrderedDict
 from typing import Dict, Tuple, List, Any, Union
@@ -104,6 +104,51 @@ class Traces(Measurer):
         return pd.DataFrame(out)
 
 
+class TracesTestset(Measurer):
+    """Measure traces of activations in relevant layers"""
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+        data_loader = dataset.test_loader
+
+        class_trace_sums: Dict[str, Dict[int, float]] = defaultdict(lambda: defaultdict(float))  # Dict of, for each layer a dict of class number to total norm.
+
+        class_means, class_num_samples = shared_cache.get_test_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+
+        for inputs, targets in tqdm.tqdm(data_loader, leave=False, desc='  '):
+            inputs, targets = inputs.to(device), targets.to(device)
+            preds, embeddings = wrapped_model(inputs)  # embeddings: Dict[Hashable, torch.Tensor]
+            one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+
+            for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                for layer_name, activations in embeddings.items():
+                    class_trace_sums[layer_name][class_idx] += torch.sum(
+                        torch.linalg.norm(activations[class_batch_indexes] - class_means[layer_name][class_idx]) ** 2
+                    ).item()
+
+        out: List[Dict[str, Any]] = []  # Output to return. List of different value entries, one for each datapoint.
+        for layer_name, layer_dict in class_trace_sums.items():
+            within_class_trc = 0
+            between_class_trc = 0
+            for class_idx in layer_dict.keys():
+                layer_class_trace_mean = class_trace_sums[layer_name][class_idx] / class_num_samples[class_idx]
+                # out.append({'value': layer_class_average, 'layer_name': layer_name, 'class': class_idx})
+                within_class_trc += (layer_class_trace_mean / dataset.num_classes).item()
+                between_class_trc += (
+                        torch.linalg.norm(class_means[layer_name][class_idx] - global_mean[layer_name]) ** 2
+                        / dataset.num_classes
+                ).item()
+            out.append({'value': within_class_trc, 'layer_name': layer_name, 'trace': 'within'})
+            out.append({'value': between_class_trc, 'layer_name': layer_name, 'trace': 'between'})
+            out.append({'value': within_class_trc + between_class_trc, 'layer_name': layer_name, 'trace': 'sum'})
+
+        return pd.DataFrame(out)
+
+
 class CDNV(Measurer):
     """Measure the CDNV metric introduced for neural collapse by Tomer Galanti."""
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
@@ -159,7 +204,62 @@ class CDNV(Measurer):
         return pd.DataFrame(out)
 
 
-class NC1(Measurer):
+class CDNVTestset(Measurer):
+    """Measure the CDNV metric introduced for neural collapse by Tomer Galanti."""
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_test_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+
+        total_activation_var: Dict[str, torch.Tensor] = OrderedDict()  # \Sigma_w
+        # NCC_match_net = 0
+
+        # M = torch.stack(mean).T  # Mean of classes before layer
+
+        for inputs, targets in tqdm.tqdm(dataset.test_loader, leave=False, desc='  CDNV, Calculating'):
+            inputs, targets = inputs.to(device), targets.to(device)
+
+            embeddings: Dict[str, torch.Tensor]
+            preds, embeddings = wrapped_model(inputs)
+            one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+            # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+
+            for layer_name, activations in embeddings.items():
+                if layer_name not in total_activation_var.keys():
+                    total_activation_var[layer_name] = torch.zeros(dataset.num_classes)
+
+                for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                    if not len(class_batch_indexes):  # Continue if no images classified to this class
+                        continue
+                    class_activations = activations[class_batch_indexes, :].detach()
+
+                    # update within-class cov
+                    rel_class_activations = class_activations - class_means[layer_name][class_idx]
+                    total_activation_var[layer_name][class_idx] += torch.sum(rel_class_activations ** 2).detach().cpu()
+
+        out: List[Dict[str, Any]] = []
+        for layer_name, total_var in total_activation_var.items():
+
+            var_per_sample = total_var.cpu() / class_num_samples.cpu()
+            rel_class_means = torch.flatten(class_means[layer_name] - global_mean[layer_name], start_dim=1).cpu()
+
+            mean_diffs = torch.cdist(rel_class_means, rel_class_means)
+            var_sums = var_per_sample.reshape(-1, 1) + var_per_sample
+            cdnv = var_sums / torch.clamp(2*mean_diffs**2, min=1E-15)  # Clamp to avoid div by 0
+            cdnv.fill_diagonal_(0)
+            sum_cdnv = torch.sum(cdnv).item() / (dataset.num_classes**2 - dataset.num_classes)
+
+            out.append({'value': sum_cdnv, 'layer_name': layer_name})
+
+        return pd.DataFrame(out)
+
+
+class NC1(Measurer):  # TODO(marius): Make test-set
     """Measure NC metrics"""
 
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
@@ -249,7 +349,7 @@ class WeightSVs(Measurer):
         return pd.DataFrame(out)
 
 
-class ActivationCovSVs(Measurer):
+class ActivationCovSVs(Measurer):  # TODO(marius): Make test-set
     """Singular values of activation covariance matrix."""
 
     def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
@@ -383,6 +483,121 @@ class ActivationStableRank(Measurer):
             # Lower bound on eigvals:
             curr_layer_eigvals = {layer_name: eigvecs.norm(dim=1)
                             for layer_name, eigvecs in curr_layer_eigvecs.items()}
+            curr_layer_eigvecs_normed = {layer_name: eigvecs / curr_layer_eigvals[layer_name].unsqueeze(1)
+                                         for layer_name, eigvecs in curr_layer_eigvecs.items()}
+
+
+            # Find the minimum cosine angle difference between current and previous eigvec estimate
+            min_cos_angle = 1
+            for layer_name, eigvecs_normed in curr_layer_eigvecs_normed.items():
+                layer_min_cos_angle = torch.min(torch.diag(prev_layer_eigvecs[layer_name] @ eigvecs_normed.T))
+                min_cos_angle = min(min_cos_angle, layer_min_cos_angle)
+
+            # If the cosine-angle difference with the previous estimated eigvec is lower than the threshold, accept the estimate.
+            if min_cos_angle > ActivationStableRank.COS_ANGLE_DIFF_THRESHOLD:
+                break
+            else:
+                pbar.set_description(f'ActStbRank [1/2], EVs, dCos: {min_cos_angle:.3G}')
+
+            # Update old eigvecs to match new
+            # prev_layer_eigvecs = curr_layer_eigvecs_normed
+            for layer_name, prev_eigvecs in prev_layer_eigvecs.items():
+                curr_eigvecs = curr_layer_eigvecs_normed[layer_name]
+                omega = ActivationStableRank.OMEGA  # For faster convergence
+                new_eigvec = curr_eigvecs*(1+omega) - omega*prev_eigvecs
+                prev_layer_eigvecs[layer_name] = new_eigvec / new_eigvec.norm(dim=1, keepdim=True)
+
+        # Calculate for each layer and each class
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(wrapped_model.output_layers, desc='  ActivationStableRank, postproc.', leave=False):
+            sq_stable_rank = frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]).cpu()  # Note: Sq. of frobenius over largest sq. SV)
+            # sq_stable_rank = torch.sqrt(frobenius_sq[layer_name].cpu() / (curr_layer_eigvals[layer_name]**2).cpu())  # Note: Sq. of frobenius over largest sq. SV)
+            for class_idx, class_sq_stable_rank in enumerate(sq_stable_rank):
+                out.append({'value': class_sq_stable_rank.item(), 'layer_name': layer_name, 'class_idx': class_idx})
+
+        return pd.DataFrame(out)
+
+
+class ActivationStableRankTestset(Measurer):  # TODO(marius): Make test-set
+    """Calculate (a version of) stable rank of activations.
+
+    Estimates, for the relative activation matrix A (activations minus class-mean for each class):
+        ||A||_F^2 / ||A||_2^2 = sum_i sigma_i^2 / max_i sigma_i^2
+    """
+
+    OMEGA = 0.5
+    MAX_ITERS = 20
+    COS_ANGLE_DIFF_THRESHOLD = 0.999
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_test_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+
+        # Calculate \sum_i \sigma^2_i = Tr(A^T A) = \sum_i a_i^T a_i (Squared Frobenius-norm?) of covariance matrix
+        # (note a_i = h_i - \mu_i for a class c):
+        ## Indexed by layer_name then class_idx
+        frobenius_sq: Dict[str, torch.Tensor] = {layer_name: torch.zeros(dataset.num_classes, device='cpu')
+                                                 for layer_name in class_means.keys()}
+
+        for inputs, targets in tqdm.tqdm(dataset.test_loader, leave=False, desc='  ActStbRank [0/2], Frobenius'):
+            inputs, targets = inputs.to(device), targets.to(device)
+
+            embeddings: Dict[str, torch.Tensor]
+            preds, embeddings = wrapped_model(inputs)
+            one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+            # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+
+            for layer_name, activations in embeddings.items():
+                for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                    if not len(class_batch_indexes):  # Continue if no images classified to this class
+                        continue
+                    class_activations = activations[class_batch_indexes, :].detach()
+                    rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)  # n x d
+
+                    # Calculate inner product of all relative activations belonging to that class, add to frobeinus_sq
+                    frobenius_sq[layer_name][class_idx] += torch.trace(rel_class_activations @ rel_class_activations.T).detach().cpu()  #
+
+
+        prev_layer_eigvecs: Dict[str, torch.tensor] = {layer_name: torch.ones_like(class_mean).flatten(start_dim=1) / len(class_mean[0])**(1/2)
+                                                       for layer_name, class_mean in class_means.items()}
+
+        # for inputs, targets in tqdm.tqdm(dataset.train_loader, leave=False, desc='  ActivationStableRank [0/2], Frobenius'):
+        # TODO(marius): Implement progress bar
+        pbar = tqdm.tqdm(range(ActivationStableRank.MAX_ITERS), leave=False, desc='  ActStbRank [1/2], Eigvecs')
+        for epoch_iters in pbar:
+
+            curr_layer_eigvecs = {layer_name: torch.zeros_like(prev) for layer_name, prev in prev_layer_eigvecs.items()}
+
+            for inputs, targets in tqdm.tqdm(dataset.test_loader, leave=False, desc='    Batches'):
+                inputs, targets = inputs.to(device), targets.to(device)
+
+                embeddings: Dict[str, torch.Tensor]
+                preds, embeddings = wrapped_model(inputs)
+                one_hot_targets = F.one_hot(targets, num_classes=dataset.num_classes) if not dataset.is_one_hot else targets
+                # class_idx_targets = torch.argmax(targets, dim=-1) if dataset.is_one_hot else targets
+
+                for layer_name, activations in embeddings.items():
+                    for class_idx, class_batch_indexes in enumerate(utils.class_idx_iterator(one_hot_targets)):
+                        if not len(class_batch_indexes):  # Continue if no images classified to this class
+                            continue
+                        # import pdb; pdb.set_trace()
+                        class_activations = activations[class_batch_indexes, :].detach()
+                        rel_class_activations = (class_activations - class_means[layer_name][class_idx]).flatten(start_dim=1)
+
+                        # Calculate inner products of relative activations with previous iteration, multiply with vector and add to new eigvec
+                        inner_prods = rel_class_activations @ prev_layer_eigvecs[layer_name][class_idx]  # (n,)
+                        curr_layer_eigvecs[layer_name][class_idx] += (inner_prods @ rel_class_activations).detach() / class_num_samples[class_idx]
+
+            # Lower bound on eigvals:
+            curr_layer_eigvals = {layer_name: eigvecs.norm(dim=1)
+                                  for layer_name, eigvecs in curr_layer_eigvecs.items()}
             curr_layer_eigvecs_normed = {layer_name: eigvecs / curr_layer_eigvals[layer_name].unsqueeze(1)
                                          for layer_name, eigvecs in curr_layer_eigvecs.items()}
 
@@ -601,6 +816,104 @@ class AngleBetweenSubspaces(Measurer):
         return pd.DataFrame(out)
 
 
+class AngleBetweenSubspacesTestset(Measurer):
+    """Measure angle between subspaces of convolutional networks"""
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper,
+                shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        class_means, class_num_samples = shared_cache.get_test_class_means_nums(wrapped_model, dataset)
+
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(class_means.keys(), desc='  ConvAngleBet.Subspc., calculating', leave=False):
+            layer_obj = utils.rgetattr(wrapped_model.base_model, layer_name)
+            if isinstance(layer_obj, torch.nn.Linear):  # For MLP models and classifier in VGG/ResNet
+                # Get layer weights
+                try:
+                    weights = layer_obj.weight
+                except AttributeError as e:
+                    warnings.warn(
+                        f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                    continue
+                weights = weights.detach()
+
+                # Decompose layer weights
+                U_w, S_w, Vh_w = torch.linalg.svd(
+                    weights)  # weights == U_w @ "np.diag(S_w).reshape(weights.shape) (padded)" Vh_w
+
+                # Decompose class means
+                layer_class_means = class_means[layer_name]
+                U_m, S_m, Vh_m = torch.linalg.svd(layer_class_means.T)  # l_c_m.T is (d x C)
+
+                # Calculate principal angles
+                rank = dataset.num_classes
+                S = torch.linalg.svdvals(Vh_w[:rank] @ U_m[:, :rank]).to('cpu').numpy()
+                avg_cos_angle = np.sum(S) / rank
+
+                out.append({'value': avg_cos_angle.item(), 'rank': rank, 'layer_name': layer_name, 'layer_type': 'fc'})
+
+            elif isinstance(layer_obj, torch.nn.Conv2d):  # For all convlayers in VGG (and others)
+                # Get layer weights
+                try:
+                    weights = layer_obj.weight
+                except AttributeError as e:
+                    warnings.warn(
+                        f"Module: {layer_name}, {layer_obj}\ndoes not have a 'weight' parameter. Make sure it is a fc-layer.")
+                    continue
+
+                """
+                # Preprocess by reshaping etc.
+                weights = weights.flatten(-2, -1).transpose(1, 0).cpu().detach().numpy()
+                layer_class_means = class_means[layer_name].flatten(-2, -1).permute(1, 2, 0).detach().cpu().numpy()
+
+                # Decompose weights
+                S_w, (U_w, V_w, X_w) = tensorly.decomposition.tucker(weights, rank=rank)
+
+                # Decompose class means
+                S_m, (U_m, V_m, X_m) = tensorly.decomposition.tucker(layer_class_means, rank=rank)
+
+                S = scipy.linalg.svdvals(
+                    U_w.T @ U_m  # U_w[:, :rank].T @ U_m[:, :rank]
+                )
+                """
+
+                weights_tx = weights.transpose(1, 0).flatten(start_dim=1)  # ch_in x (C * h * w)
+                features_tx = class_means[layer_name].transpose(1, 0).flatten(start_dim=1)  # ch_in x (ch_out * h * w)
+                U_w, S_w, Vh_w = torch.linalg.svd(weights_tx.detach())
+                U_m, S_m, Vh_m = torch.linalg.svd(features_tx.detach())  # Note: Sm is rank (C * h * w)
+
+                # rank = dataset.num_classes
+                max_rank = min(U_w.shape[1], U_m.shape[1])
+                ranks = list(range(1, min(100, max_rank + 1), 1)) + list(range(100, max_rank + 1, dataset.num_classes))
+                for rank in ranks:
+                    S = torch.linalg.svdvals(U_w[:, :rank].t() @ U_m[:, :rank]).to('cpu').detach().numpy()
+                    avg_cos_angle = np.sum(S) / rank
+                    out.append(
+                        {'value': avg_cos_angle.item(), 'rank': rank, 'layer_name': layer_name, 'layer_type': 'conv'})
+
+            else:
+                continue
+
+            # layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+
+            # U, S, Vh = scipy.linalg.svd(Vh_w @ U_m)
+
+            # S_sum = np.cumsum(S) / 10  # TODO(marius): Remove "/10" and update NCPlotter._plot_angleBetweenSubspaces (i.e. remove "*10")
+
+            # for idx, (sigma, sigma_sum) in enumerate(zip(S, S_sum)):
+            #     out.append({'value': sigma, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': False})
+            #     out.append({'value': sigma_sum, 'sigma_idx': idx, 'layer_name': layer_name, 'sum': True})
+
+        return pd.DataFrame(out)
+
+
 '''
 class AngleBetweenSubspaces(Measurer):
     """Measure angle between subspaces of first 10 singular vectors of weights and class means"""
@@ -650,6 +963,7 @@ class AngleBetweenSubspaces(Measurer):
         return pd.DataFrame(out)
 '''
 
+
 class ETF(Measurer):
     """Measure 'angle class means plus 1/(C-1)' and norms of relative class means.
 
@@ -664,6 +978,51 @@ class ETF(Measurer):
         device = next(wrapped_model.parameters()).device
 
         class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
+        # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
+
+        out: List[Dict[str, Any]] = []
+        for layer_name in tqdm.tqdm(class_means.keys(), desc='  ETFAngle, calculating', leave=False):
+
+            layer_rel_class_means = (class_means[layer_name] - global_mean[layer_name]).flatten(start_dim=1).to('cpu')
+            # layer_classwise_cov_within = classwise_cov_within[layer_name].to('cpu')
+            # layer_cov_between = torch.matmul(layer_rel_class_means.T, layer_rel_class_means) / dataset.num_classes
+            # layer_class_means = class_means[layer_name]
+
+            layer_rel_class_means_norms = torch.linalg.norm(layer_rel_class_means, dim=1)  # Class means in rows
+            normed_layer_rel_class_means = torch.nn.functional.normalize(layer_rel_class_means, dim=1)  # Class means in rows
+
+            class_means_cos_angles = normed_layer_rel_class_means @ normed_layer_rel_class_means.T
+            class_means_cos_angles_plus_correction = class_means_cos_angles + 1 / (dataset.num_classes - 1)
+
+            for l_class_idx in range(dataset.num_classes):
+                out.append({'value': layer_rel_class_means_norms[l_class_idx].item(), 'layer_name': layer_name,
+                            'l_ord': l_class_idx, 'r_ord': l_class_idx, 'type': 'norm'})
+                for r_class_idx in range(dataset.num_classes):
+                    if l_class_idx == r_class_idx:
+                        continue
+                    out.append({'value': class_means_cos_angles_plus_correction[l_class_idx][r_class_idx].item(),
+                                'layer_name': layer_name,
+                                'l_ord': l_class_idx, 'r_ord': r_class_idx, 'type': 'angle'})
+
+        return pd.DataFrame(out)
+
+
+class ETFTestset(Measurer):
+    """Measure 'angle class means plus 1/(C-1)' and norms of relative class means.
+
+    cos(angle)+1/(C-1) -> 0 in NC2, and expect norms to be the same length.
+    """
+
+    def measure(self, wrapped_model: Models.ForwardHookedOutput, dataset: DatasetWrapper, shared_cache=None) -> pd.DataFrame:
+        if shared_cache is None:
+            shared_cache = SharedMeasurementVarsCache()
+
+        wrapped_model.base_model.eval()
+        device = next(wrapped_model.parameters()).device
+
+        # class_means, class_num_samples = shared_cache.get_train_class_means_nums(wrapped_model, dataset)
+        class_means, class_num_samples = shared_cache.get_test_class_means_nums(wrapped_model, dataset)
         global_mean = shared_cache.calc_global_mean(class_means, class_num_samples)
         # classwise_cov_within = shared_cache.get_train_class_covariance(wrapped_model, dataset)
 
@@ -976,7 +1335,6 @@ FAST_MEASURES = [
     # 'ActivationCovSVs',
     # 'MLPSVD',
     'AngleBetweenSubspaces',  # Paper: NC3
-    # 'ConvAngleBetweenSubspaces',  # Paper: NC3
     'ETF',  # Paper: NC2
     'NCC',  # Paper: NC4
 ]
@@ -984,6 +1342,21 @@ FAST_MEASURES = [
 STABLERANK_MEASURE = [
     'ActivationStableRank',
 ]
+
+FAST_TESTSET_MEASURES = [
+    'TracesTestset',  # Paper: NC1
+    'CDNVTestset',
+    # 'NC1',
+    'AngleBetweenSubspacesTestset',  # Paper: NC3
+    'ETFTestset',  # Paper: NC2
+    # 'ActivationStableRankTestset',
+]
+
+# SLOW_TESTSET_MEASURES = [
+#     'NC1',
+#     'ActivaitionCovSBs',
+#     'MLPSVD'
+# ]
 
 ALL_MEASURES = FAST_MEASURES + STABLERANK_MEASURE + SLOW_MEASURES
 
