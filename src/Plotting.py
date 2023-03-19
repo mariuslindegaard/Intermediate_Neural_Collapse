@@ -419,7 +419,7 @@ class NCPlotter:
         plt.ylabel(r'$\sigma_i / \sum\sigma_j$')
         plt.xlabel('Layer')
 
-        plt.title(f"Weight relative SVs, epoch {epoch}")
+        plt.title(f"Weight relative Sing.Vals, epoch {epoch}")
         plt.xticks(rotation=90)
 
         if PRETTY_OUT:
