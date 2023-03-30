@@ -61,8 +61,8 @@ class Experiment:
         else:
             measure_strings = measurements_cfg['measures']
 
-        print("\nSETTING MEASURES TO TESTSET-FAST!\n")
-        measure_strings = Measurer.FAST_TESTSET_MEASURES
+        # print("\nSETTING MEASURES TO TESTSET-FAST!\n")
+        # measure_strings = Measurer.FAST_TESTSET_MEASURES
 
         self.measures = {measurement_str: getattr(Measurer, measurement_str)()
                          for measurement_str in measure_strings}
