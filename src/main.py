@@ -8,17 +8,21 @@ import Logger
 import os
 
 
-def run_experiment(config_file_path: str, plot: bool):
+def run_experiment(config_file_path: str, plot: bool, do_measurements: bool = True):
     """Run the experiment corresponding to the config file"""
     # TODO(marius): Add option to clean before training (i.e. removing directory before run)
     # TODO(marius): Add option to throw error if measurements already exist. (Maybe lower level code?)
     # TODO(marius): Add plotting automatically
     print("Loading experiment")
     exp = Experiment(config_file_path)
-    print("Training NN")
-    exp.train()
-    print("Running measurements")
-    exp.do_measurements_on_checkpoints()
+    print('NOT TRAINING!!!')  # TODO(marius): Remove debug
+    # print("Training NN")
+    # exp.train()
+
+    # do_measurements = False  # TODO(marius): Remove debug
+    if do_measurements:
+        print("Running measurements")
+        exp.do_measurements_on_checkpoints()
     if plot:
         print('Plotting results')
         NCPlotter.plot_runs(exp.logger.save_dirs.base, dict())
@@ -26,7 +30,7 @@ def run_experiment(config_file_path: str, plot: bool):
 
 
 def main(config_file_path: str, unpack_config_matrix: bool, parse_and_submit_to_slurm: bool,
-         use_timestamp_with_matrix: bool, dry_run: bool, plot_after_run: bool):
+         use_timestamp_with_matrix: bool, dry_run: bool, plot_after_run: bool, no_measurements: bool):
     if unpack_config_matrix:
         print(f"Parsing matrix config at {config_file_path} and submitting to slurm.")
         configs_with_path, parent_savedir = slurm_utils.parse_config_matrix(config_file_path)
@@ -71,6 +75,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--dry_run', action='store_true', default=False, help='Do dry-run with slurm, just parsing configs but not submitting anything or creating files.')
     parser.add_argument('-n', '--no_timestamp', action='store_true', default=False, help="Don't include timestamp in logdir when running with matrix parsing")
     parser.add_argument('-p', '--no_plot', action='store_true', default=False, help='Plot immediately after run finishes')
+    parser.add_argument('--no_measurements', action='store_true', default=False, help="Don't run measureents")
     _args = parser.parse_args()
 
     # assert not (_args.no_slurm_timestamp and not _args.matrix), "Illegal combination of arguments, will never use timestamps when not parsing matrix"
@@ -83,5 +88,7 @@ if __name__ == "__main__":
          parse_and_submit_to_slurm=_args.slurm,
          use_timestamp_with_matrix=not _args.no_timestamp,
          dry_run=_args.dry_run,
-         plot_after_run=not _args.no_plot)
+         plot_after_run=not _args.no_plot,
+         no_measurements=_args.no_measurements,
+    )
     # run_experiment(config_file_path=_args.config)

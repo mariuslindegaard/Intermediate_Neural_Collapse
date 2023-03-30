@@ -61,6 +61,9 @@ class Experiment:
         else:
             measure_strings = measurements_cfg['measures']
 
+        # print("\nSETTING MEASURES TO TESTSET-FAST!\n")
+        # measure_strings = Measurer.FAST_TESTSET_MEASURES
+
         self.measures = {measurement_str: getattr(Measurer, measurement_str)()
                          for measurement_str in measure_strings}
 
@@ -171,13 +174,16 @@ class Experiment:
 
         # Set which checkpoints to do measurements on first, if they are in the list of checkpoints.
         priority_checkpoints = [600, 350, 300, 100, 10, 1, 0]
+        only_priority_paths = []
         for epoch in reversed(priority_checkpoints):
             for path in model_path_list:
                 if path.endswith(f'{epoch:0>3}.tar'):
                     model_path_list.remove(path)
                     model_path_list.append(path)
+                    only_priority_paths.append(path)
                     continue
-        pbar = tqdm.tqdm(list(reversed(model_path_list)), desc='Checkpoints')
+        # pbar = tqdm.tqdm(list(reversed(model_path_list)), desc='Checkpoints')
+        pbar = tqdm.tqdm(list(reversed(only_priority_paths)), desc='Checkpoints')
 
         for model_checkpoint_path in pbar:
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
