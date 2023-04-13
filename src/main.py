@@ -12,16 +12,17 @@ def run_experiment(config_file_path: str, plot: bool, do_measurements: bool = Tr
     """Run the experiment corresponding to the config file"""
     # TODO(marius): Add option to clean before training (i.e. removing directory before run)
     # TODO(marius): Add option to throw error if measurements already exist. (Maybe lower level code?)
-    # TODO(marius): Add plotting automatically
+
     print("Loading experiment")
     exp = Experiment(config_file_path)
+
     print("Training NN")
     exp.train()
 
-    # do_measurements = False  # TODO(marius): Remove debug
     if do_measurements:
         print("Running measurements")
         exp.do_measurements_on_checkpoints()
+
     if plot:
         print('Plotting results')
         NCPlotter.plot_runs(exp.logger.save_dirs.base, dict())
@@ -55,13 +56,15 @@ def main(config_file_path: str, unpack_config_matrix: bool, parse_and_submit_to_
                           "It is advised you submit with slurm.\n\n")
             for config_dict, rel_savedir in configs_with_path:
                 print('-' * 32, f'### Running experiment: {rel_savedir}', '-' * 32, sep='\n')
-                run_experiment(os.path.join(base_savedir.base, rel_savedir, 'config.yaml'), plot=plot_after_run)
+                run_experiment(os.path.join(base_savedir.base, rel_savedir, 'config.yaml'),
+                               plot=plot_after_run, do_measurements=not no_measurements)
 
     else:
         if dry_run:
             print(f'\nDoing dry-run: Not running single experiment at {config_file_path}.')
             return
-        run_experiment(config_file_path, plot=plot_after_run)
+        run_experiment(config_file_path,
+                       plot=plot_after_run, do_measurements=not no_measurements)
 
 
 if __name__ == "__main__":
