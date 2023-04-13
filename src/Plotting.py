@@ -212,6 +212,9 @@ class NCPlotter:
                 else:
                     title = "OtherModel: " + title
 
+                if 'testset' in measure.lower():
+                    title = '(Testset) ' + title
+
                 plt.suptitle(title, y=0.99)
                 if PRETTY_OUT:
                     # Make sure there are no more than 'max_ticks' ticks visualized in the plot
@@ -745,7 +748,12 @@ class NCPlotter:
             # NC3:
             'AngleBetweenSubspaces': (NCPlotter._plot_angleBetweenSubspaces, 1),
             # NC4:
-            'NCC': (NCPlotter._plot_NCC, 1)
+            'NCC': (NCPlotter._plot_NCC, 1),
+            # Testset
+            'CDNVTestset': (NCPlotter._plot_cdnv, 1),
+            'TracesTestset': (NCPlotter._plot_traces, 2),
+            'ETFTestset': (NCPlotter._plot_ETF, 3),
+            'AngleBetweenSubspacesTestset': (NCPlotter._plot_angleBetweenSubspaces, 1),
         }
         return relevant_measures
 

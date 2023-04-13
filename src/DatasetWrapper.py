@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader  # , Subset
 
 from typing import Optional, Dict, Tuple
 
+import TinyImagenet
+
 # TODO(marius): Verify whether shuffling of data is needed
 
 
@@ -39,6 +41,7 @@ class DatasetWrapper:
             'fashionmnist': DatasetWrapper.fashion_mnist,
             'cifar100': DatasetWrapper.cifar100,
             'imagenet': DatasetWrapper.imagenet,
+            'tinyimagenet': DatasetWrapper.tinyimagenet,
             'stl10': DatasetWrapper.stl10,
             'svhn': DatasetWrapper.svhn
         }
@@ -46,6 +49,8 @@ class DatasetWrapper:
         if not self.data_id.lower() in id_mapping.keys():
             raise NotImplementedError(f"Dataset with id '{self.data_id}' is not implemented. "
                                       f"Id must be one of \n{id_mapping.keys()}")
+
+        # TODO(marius): Implement check that the "dataset" dir exists, and recommend setting a symlink to the root directory of the repo.
 
         # Prepeare datset
         train_data, test_data = id_mapping[self.data_id.lower()](self, data_cfg, *args, **kwargs)
@@ -233,10 +238,48 @@ class DatasetWrapper:
         else:
             train_tx = test_tx
 
-        train_data = datasets.ImageNet(root=self.data_download_dir, train=True, download=download, transform=train_tx)
-        test_data = datasets.ImageNet(root=self.data_download_dir, train=False, download=download, transform=test_tx)
+        # import pdb; pdb.set_trace()
+        train_data = datasets.ImageNet(root=self.data_download_dir, train=True,  # download=False,
+                                       transform=train_tx)
+        test_data = datasets.ImageNet(root=self.data_download_dir, train=False,  # download=download,
+                                      transform=test_tx)
         self.is_one_hot = False
         self.num_classes = 1000
+
+        return train_data, test_data
+
+    def tinyimagenet(self, data_cfg: Optional[Dict] = None, download=True):
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        test_tx = transforms.Compose([
+            transforms.Resize(32),  # Note: Resizing to 32x32 from 64x64
+            transforms.ToTensor(),
+            normalize
+        ])
+        if do_augmentation:
+            train_tx = transforms.Compose([
+                transforms.Resize(32),
+                transforms.RandomCrop(64, padding=8),  # Likely non-standard augmentation
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                transforms.ToTensor(),
+                normalize,
+            ])
+        else:
+            train_tx = test_tx
+
+        tiny_imagenet_dir = os.path.join(self.data_download_dir, 'tiny-imagenet-200')
+        train_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='train', download=False,
+                                                      transform=train_tx)
+        test_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='val',  download=False,
+                                                     transform=train_tx)
+        self.is_one_hot = False
+        self.num_classes = 200
 
         return train_data, test_data
 

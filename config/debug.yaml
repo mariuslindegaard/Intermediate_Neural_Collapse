@@ -14,7 +14,7 @@ Model:
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
-  dataset-id: mnist_debug # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: tinyimagenet    # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 128         # Mini-batch size
   do-augmentation: False  # Whether to do data augmentation
 
@@ -36,6 +36,6 @@ Logging:
   log-epochs: [0, 1, 10]  # Overrides log-interval
 
 Measurements:
-  # measures: Fast_StableRank
-  measures: [Accuracy]
+  measures: Fast_StableRank
+  # measures: [Accuracy]
 ...
