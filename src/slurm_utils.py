@@ -221,7 +221,8 @@ conda activate nc
 echo
 echo "~~~ RUNNING EXPERIMENT! ~~~"
 echo
-python3 {} --config {}
+echo "Running with config file {2:}"
+python3 {1:} --config {2:}
 echo
 echo
 echo "~~~ FINISHED EXPERIMENT! ~~~"
@@ -235,7 +236,7 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --gres=gpu:1  # --constraint=40GB
 #SBATCH --constraint=high-capacity
 #SBATCH --time=18:00:00
-#SBATCH --exclude=node021
+#SBATCH --exclude=node021,node086
 #SBATCH --mem=20000
 #SBATCH --requeue
 # #SBATCH --qos=cbmm  # TODO(marius): Remove cbmm-identifier for submission

@@ -32,6 +32,8 @@ class ForwardHookedOutput(nn.Module):
             )
             self.output_layers.append(module_name)
 
+        return self.output_layers
+
     def hook(self, module, inputs, outputs):
         layer_name = self._module_to_layer_name[module]
         assert type(inputs) is tuple and len(inputs) == 1,\

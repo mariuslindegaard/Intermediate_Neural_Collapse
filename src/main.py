@@ -93,4 +93,3 @@ if __name__ == "__main__":
          plot_after_run=not _args.no_plot,
          no_measurements=_args.no_measurements,
     )
-    # run_experiment(config_file_path=_args.config)

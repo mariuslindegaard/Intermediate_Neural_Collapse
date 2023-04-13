@@ -30,7 +30,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num-workers', min(1, os.cpu_count()))  # len(os.sched_getaffinity(0))
+        self.num_workers = data_cfg.get('num-workers', min(16, os.cpu_count()))  # len(os.sched_getaffinity(0))
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
@@ -381,7 +381,7 @@ def load_dataset(dataset_id: str, batch_size: int, *args, **kwargs) -> DatasetWr
 
 
 def _test():
-    return load_dataset_from_dict({'dataset-id': 'tinyimagenet', 'batch-size': 128})
+    return load_dataset_from_dict({'dataset-id': 'cifar10', 'batch-size': 128})
 
 
 if __name__ == "__main__":

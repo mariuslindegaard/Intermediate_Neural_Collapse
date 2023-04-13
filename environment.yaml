@@ -15,6 +15,6 @@ dependencies:
   - pyyaml>=6.0
   - tensorly>=0.8.0
   - seaborn>=0.12.2
-  - PIL
+  - pillow>=9.4.0
 #   - python=3.7
 # prefix: /om2/user/lindegrd/miniconda3/envs/nc
