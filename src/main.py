@@ -15,9 +15,8 @@ def run_experiment(config_file_path: str, plot: bool, do_measurements: bool = Tr
     # TODO(marius): Add plotting automatically
     print("Loading experiment")
     exp = Experiment(config_file_path)
-    print('NOT TRAINING!!!')  # TODO(marius): Remove debug
-    # print("Training NN")
-    # exp.train()
+    print("Training NN")
+    exp.train()
 
     # do_measurements = False  # TODO(marius): Remove debug
     if do_measurements:

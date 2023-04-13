@@ -150,7 +150,6 @@ class Experiment:
                                desc='Epochs',
                                )
         for epoch in pbar_epoch:
-            # todo(marius): Implement warmup training (if wanting to copy cifar_100 repo exactly)
             if epoch in self.logger.log_epochs:
                 self.logger.save_model(self.wrapped_model, epoch, wrapped_optimizer=self.wrapped_optimizer)
 
