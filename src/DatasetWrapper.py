@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader  # , Subset
 
 from typing import Optional, Dict, Tuple
 
+import TinyImagenet
+
 # TODO(marius): Verify whether shuffling of data is needed
 
 
@@ -28,7 +30,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num-workers', min(16, os.cpu_count()))  # len(os.sched_getaffinity(0))
+        self.num_workers = data_cfg.get('num-workers', min(1, os.cpu_count()))  # len(os.sched_getaffinity(0))
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
@@ -39,6 +41,7 @@ class DatasetWrapper:
             'fashionmnist': DatasetWrapper.fashion_mnist,
             'cifar100': DatasetWrapper.cifar100,
             'imagenet': DatasetWrapper.imagenet,
+            'tinyimagenet': DatasetWrapper.tinyimagenet,
             'stl10': DatasetWrapper.stl10,
             'svhn': DatasetWrapper.svhn
         }
@@ -245,6 +248,41 @@ class DatasetWrapper:
 
         return train_data, test_data
 
+    def tinyimagenet(self, data_cfg: Optional[Dict] = None, download=True):
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        test_tx = transforms.Compose([
+            transforms.Resize(32),  # Note: Resizing to 32x32 from 64x64
+            transforms.ToTensor(),
+            normalize
+        ])
+        if do_augmentation:
+            train_tx = transforms.Compose([
+                transforms.Resize(32),
+                transforms.RandomCrop(64, padding=8),  # Likely non-standard augmentation
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                transforms.ToTensor(),
+                normalize,
+            ])
+        else:
+            train_tx = test_tx
+
+        tiny_imagenet_dir = os.path.join(self.data_download_dir, 'tiny-imagenet-200')
+        train_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='train', download=False,
+                                                      transform=train_tx)
+        test_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='val',  download=False,
+                                                     transform=train_tx)
+        self.is_one_hot = False
+        self.num_classes = 200
+
+        return train_data, test_data
+
     def mnist(self, data_cfg: Optional[Dict] = None, download=True):
         """Mnist dataset"""
         assert not data_cfg.get('do-augmentation', False), "Data augmentation specified for MNIST but is not supported."
@@ -343,7 +381,7 @@ def load_dataset(dataset_id: str, batch_size: int, *args, **kwargs) -> DatasetWr
 
 
 def _test():
-    return load_dataset_from_dict({'dataset-id': 'cifar10', 'batch-size': 128})
+    return load_dataset_from_dict({'dataset-id': 'tinyimagenet', 'batch-size': 128})
 
 
 if __name__ == "__main__":
