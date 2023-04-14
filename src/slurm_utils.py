@@ -221,8 +221,8 @@ conda activate nc
 echo
 echo "~~~ RUNNING EXPERIMENT! ~~~"
 echo
-echo "Running with config file {2:}"
-python3 {1:} --config {2:}
+echo "Running with config file {1:}"
+python3 {0:} --config {1:}
 echo
 echo
 echo "~~~ FINISHED EXPERIMENT! ~~~"
