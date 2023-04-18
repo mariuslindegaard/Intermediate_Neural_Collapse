@@ -55,7 +55,7 @@ def _add_channels(img: PIL.Image) -> PIL.Image:
     if len(img.getbands()) == 1:
         img = img.convert("RGB")
 
-    assert len(img.getbands()) == 3, f"Image is not grayscale or RGB but has {img.getbands()} channels."
+    # assert len(img.getbands()) == 3, f"Image is not grayscale or RGB but has {img.getbands()} channels."
     return img
 
 

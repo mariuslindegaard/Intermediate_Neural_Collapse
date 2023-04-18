@@ -13,8 +13,12 @@ def run_experiment(config_file_path: str, plot: bool, do_measurements: bool = Tr
     # TODO(marius): Add option to clean before training (i.e. removing directory before run)
     # TODO(marius): Add option to throw error if measurements already exist. (Maybe lower level code?)
 
-    print("Loading experiment")
+    print(f"Loading experiment at {config_file_path}")
     exp = Experiment(config_file_path)
+
+    print("---\nConfig:")
+    print(exp._config_params)
+    print("---")
 
     print("Training NN")
     exp.train()

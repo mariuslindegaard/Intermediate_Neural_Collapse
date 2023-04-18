@@ -149,6 +149,7 @@ class Experiment:
                                initial=start_epoch, total=self.wrapped_optimizer.max_epochs,
                                desc='Epochs',
                                )
+        epoch_acc = None
         for epoch in pbar_epoch:
             if epoch in self.logger.log_epochs:
                 self.logger.save_model(self.wrapped_model, epoch, wrapped_optimizer=self.wrapped_optimizer)
@@ -166,6 +167,12 @@ class Experiment:
             self.wrapped_optimizer.lr_scheduler.step()
 
         self.logger.save_model(self.wrapped_model, self.wrapped_optimizer.max_epochs, wrapped_optimizer=self.wrapped_optimizer)
+
+        # Write to a file reporting the last accuracy
+        if epoch_acc is not None:  # TODO(marius): Make less hacky
+            logfile = Logger.os.path.join(self.logger.save_dirs.base, f'TrAcc={epoch_acc}')
+            with open(logfile, 'w') as f:
+                pass
 
     def do_measurements_on_checkpoints(self):
         """Do measurements over all checkpoints saved"""
