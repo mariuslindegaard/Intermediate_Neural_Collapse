@@ -44,22 +44,41 @@ def _apply_configdict_edits(config_dict: Dict, config_edits: Dict[str, Any],
                             _base: Tuple[str, ...] = tuple()) -> None:
     """Apply edits inplace to input config dict
 
-    :param config_dict:
-    :param config_edits:
-    :return:
+    :param config_dict: Config dict to apply edits to
+    :param config_edits: Edits to apply
+    :return: None
     """
     for key, val in config_edits.items():
         if type(val) is dict:
+            if key not in config_dict:
+                config_dict[key] = {}
             _apply_configdict_edits(config_dict[key], val, _base + (key,))
         else:
             config_dict[key] = val
 
+
+def _merge_config_dicts(*config_dicts: Dict) -> Dict:
+    """Merge config dicts, with later dicts overwriting earlier ones. Does not modify input dicts.
+
+    :param config_dicts: Config dicts to merge, in order of precedence (i.e. later dicts overwrite earlier ones)
+    :return: Merged config dict
+    """
+    if len(config_dicts) == 0:
+        return {}
+    elif len(config_dicts) == 1:
+        return config_dicts[0].copy()
+    else:
+        new_dict = _merge_config_dicts(*config_dicts[:-1])
+        _apply_configdict_edits(new_dict, config_dicts[-1])
+        return new_dict
+
+
 def _path_amendment(x: Dict[str, Any], key: str) -> str:
     """Amendment to path for specific point in config matrix, specifying where to save
 
-    :param x:
-    :param key:
-    :return:
+    :param x: Config dict
+    :param key: Key to amend path with
+    :return: Amendment to path
     """
     # if key.lower() == 'measures':  # If the only difference is in the measures, let them run since they output to different files
     #     return "m"
@@ -72,7 +91,7 @@ def _path_amendment(x: Dict[str, Any], key: str) -> str:
 
 
 def _matrix_config_parser(config_matrix: Dict) -> Iterator[Tuple[Dict[str, Any], str]]:
-    """
+    """Get iterator over all configs as specified by matrix config
 
     :param config_matrix: Config file dict (at root of file) with 'Matrix' parameter
     :return: Iterator over all configs in dict form with generated string of savepath
@@ -118,11 +137,11 @@ def _matrix_config_parser(config_matrix: Dict) -> Iterator[Tuple[Dict[str, Any],
         current_edits: Dict[str, Any] = {}
         current_path = ''
         for edit, path_amendment in edits:
-            current_edits = {**current_edits, **edit}  # TODO(marius): Make function with recursively defined edits (i.e. same keys)
+            current_edits = _merge_config_dicts(current_edits, edit)
             current_path = os.path.join(current_path, path_amendment)
 
         for exclusive_edits, exclusive_path in exclusive_pool:
-            yield {**current_edits, **exclusive_edits}, os.path.join(exclusive_path, current_path)
+            yield _merge_config_dicts(current_edits, exclusive_edits), os.path.join(exclusive_path, current_path)
 
         if not exclusive_pool:
             yield current_edits, current_path
@@ -131,10 +150,10 @@ def _matrix_config_parser(config_matrix: Dict) -> Iterator[Tuple[Dict[str, Any],
 def write_conf_to_savedir(config_dict: Dict, parent_savedir: Logger.SaveDirs, rel_savedir: str) -> Logger.SaveDirs:
     """Write config dict to relevant savedir.
 
-    :param config_dict:
-    :param parent_savedir:
-    :param rel_savedir:
-    :return: SaveDir object for this run's savedir.
+    :param config_dict: Config dict to write
+    :param parent_savedir: Root savedir
+    :param rel_savedir: Relative savedir from root savedir
+    :return: SaveDirs object for this run's savedir.
     """
     new_savedir = copy.deepcopy(parent_savedir)
     new_savedir.force_new_base_path(os.path.join(new_savedir.base, rel_savedir))
@@ -154,9 +173,9 @@ def write_conf_to_savedir(config_dict: Dict, parent_savedir: Logger.SaveDirs, re
 def write_to_bash_script(idx: int, base_savedir: Logger.SaveDirs, run_savedir: Logger.SaveDirs) -> str:
     """Write to bash script to be run by slurm.
 
-    :param idx:
-    :param base_savedir:
-    :param run_savedir:
+    :param idx: Job idx
+    :param base_savedir: Base savedir
+    :param run_savedir: Savedir for this run
     :return: Path to script
     """
     script_path = os.path.join(base_savedir.base, '__slurm/jobs', f'{idx}.sh')
@@ -168,6 +187,10 @@ def write_to_bash_script(idx: int, base_savedir: Logger.SaveDirs, run_savedir: L
     os.makedirs(os.path.join(base_savedir.base, '__slurm/jobs'), exist_ok=True)
     with open(script_path, 'w+') as script_f:
         script_f.write(script_content)
+
+    # Write path to csv-file in __slurm
+    with open(os.path.join(base_savedir.base, '__slurm/job_path_map.csv'), 'a+') as csv_f:
+        csv_f.write(f'{idx},{os.path.relpath(run_savedir.base, base_savedir.base)}\n')
 
     return script_path
 
