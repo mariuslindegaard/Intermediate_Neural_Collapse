@@ -346,51 +346,51 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
 
     elif model_name.startswith('mlp'):
         # Find specified MLP hidden layers
-        suffix = model_name[3:]
+        suffixes = model_name[3:].split('_')
         sizes = {
-            '_linear': [],
-            '_single': [512]*1,
-            '_small': [256]*4,
-            '_wide': [1024]*4,
-            '_xwide': [2048]*4,
-            '_default': [512]*5,
-            '_large': [1024]*10,
-            '_xlarge': [1024] * 20,
-            '_huge': [2048] * 20,
+            'linear': [],
+            'single': [512]*1,
+            'small': [256]*4,
+            'wide': [1024]*4,
+            'xwide': [2048]*4,
+            'default': [512]*5,
+            'large': [1024]*10,
+            'xlarge': [1024] * 20,
+            'huge': [2048] * 20,
         }
         sizes_match = ''
         for sizes_key in sizes.keys():
-            if sizes_key in suffix:
+            if sizes_key in suffixes:
                 assert not sizes_match, f"Multiple matches for given MLP suffix: {sizes_key} and {sizes_match}."
                 sizes_match = sizes_key
         if not sizes_match:
-            sizes_match = '_default'
+            sizes_match = 'default'
         hidden_layer_sizes = sizes[sizes_match]
 
         # Construct MLP
-        mlptype = MLP if '_sharedweight' not in model_name.lower() else SharedWeightMLP
+        mlptype = MLP if 'sharedweight' not in suffixes else SharedWeightMLP
         base_model = mlptype(
             input_size=datasetwrapper.input_batch_shape[1:].numel(),
             hidden_layers_widths=hidden_layer_sizes,
             output_size=datasetwrapper.num_classes,
-            use_bias='_bias' in model_name,
-            use_batch_norm='_nobn' not in model_name
+            use_bias='bias' in suffixes,
+            use_batch_norm='nobn' not in suffixes,
         )
 
     elif model_name.startswith('convnet'):
         # Find specified convnet filter sizes
-        suffix = model_name[len('convnet'):]
+        suffixes = model_name[len('convnet'):].split('_')
         sizes = {
-            '_small': [64]*7,
-            '_default': [128]*10,
-            '_wide': [256]*10,
-            '_deep': [128]*20,
-            '_deepwide': [256]*20,
-            '_huge': [512]*20,
+            'small': [64]*7,
+            'default': [128]*10,
+            'wide': [256]*10,
+            'deep': [128]*20,
+            'deepwide': [256]*20,
+            'huge': [512]*20,
         }
         sizes_match = ''
         for sizes_key in sizes.keys():
-            if sizes_key in suffix:
+            if sizes_key in suffixes:
                 assert not sizes_match, f"Multiple matches for given ConvNet suffix: {sizes_key} and {sizes_match}."
                 sizes_match = sizes_key
         if not sizes_match:
@@ -404,7 +404,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
                              image_hw=torch.Tensor(tuple(datasetwrapper.input_batch_shape[2:])),
                              output_size=datasetwrapper.num_classes,
                              hidden_layers_channels=hidden_layer_sizes, downsampling_layers=downsampling_layers,
-                             use_bias='_bias' in model_name, use_batch_norm='_nobn' not in model_name)
+                             use_bias='bias' in suffixes, use_batch_norm='nobn' not in suffixes)
     else:
         raise NotImplementedError(f"Model type not supported: {model_name}")
 

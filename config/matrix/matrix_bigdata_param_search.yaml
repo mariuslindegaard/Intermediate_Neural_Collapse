@@ -55,9 +55,9 @@ Matrix:
         # embedding-layers: [[conv, fc]]
       # Measurements:
       #   measures: [Fast_StableRank]
-    convnet_huge:
+    convnet_deepwide:
       Model:
-        model-name: [convnet_huge]
+        model-name: [convnet_deepwide]
         # embedding-layers: [[conv, fc]]
       # Measurements:
       #   measures: [Fast_StableRank]
