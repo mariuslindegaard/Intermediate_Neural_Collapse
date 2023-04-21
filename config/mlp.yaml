@@ -16,7 +16,7 @@ Optimizer:
   loss: mseloss
   weight-decay: 2.e-4    # Weight decay
   lr: 0.067              # Learning rate
-  lr-decay: 0.2
+  lr-decay: 0.1
   lr-decay-steps: 3      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
   epochs: 300            # Number of epochs to train for

@@ -22,7 +22,7 @@ Optimizer:
   loss: mseloss
   weight-decay: 5.e-4    # Weight decay
   lr: 0.003              # Learning rate
-  lr-decay: 0.2
+  lr-decay: 0.1
   lr-decay-steps: 1      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
   epochs: 1              # Number of epochs to train for
@@ -36,6 +36,6 @@ Logging:
   log-epochs: [0, 1, 10]  # Overrides log-interval
 
 Measurements:
-  measures: Fast_StableRank
-  # measures: [Accuracy]
+  # measures: Fast_StableRank
+  measures: [Accuracy]
 ...
