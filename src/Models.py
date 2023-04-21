@@ -298,10 +298,18 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
     model_name: str = model_cfg['model-name'].lower()
 
     if model_name.startswith('resnet'):
+
+        # Check for pretrained config
+        if model_name.endswith('_pretrained'):
+            model_name = model_name[:-len('_pretrained')]
+            pretrained = True
+        else:
+            pretrained = False
+
         # Find specified resnet in torchvision.models
         assert hasattr(torchvision.models, model_name), f"Model type not supported: {model_name}" \
                                                         f"\nNo such resnet model in torchvision.models"
-        base_model = getattr(torchvision.models, model_name)(pretrained=False)
+        base_model = getattr(torchvision.models, model_name)(pretrained=pretrained)
 
         # Set input channels to match input channels of dataset
         data_input_channels = datasetwrapper.input_batch_shape[1]
@@ -371,12 +379,13 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
 
     elif model_name.startswith('convnet'):
         # Find specified convnet filter sizes
-        suffix = model_name[7:]
+        suffix = model_name[len('convnet'):]
         sizes = {
             '_small': [64]*7,
             '_default': [128]*10,
-            '_deep': [128]*20,
             '_wide': [256]*10,
+            '_deep': [128]*20,
+            '_deepwide': [256]*20,
             '_huge': [512]*20,
         }
         sizes_match = ''
