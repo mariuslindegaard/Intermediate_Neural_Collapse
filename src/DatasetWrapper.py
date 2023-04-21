@@ -30,7 +30,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num-workers', min(4, os.cpu_count()))  # len(os.sched_getaffinity(0))
+        self.num_workers = data_cfg.get('num-workers', min(8, os.cpu_count()))  # len(os.sched_getaffinity(0))
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
@@ -262,6 +262,8 @@ class DatasetWrapper:
             normalize
         ])
         if do_augmentation:
+            raise NotImplementedError("Data augmentation not implemented for TinyImageNet."
+                                      "\nRewrite preloading to allow for non-static transforms.")  # TODO(marius): Implement
             train_tx = transforms.Compose([
                 transforms.Resize(32),
                 transforms.RandomCrop(64, padding=8),  # Likely non-standard augmentation
@@ -275,9 +277,9 @@ class DatasetWrapper:
 
         tiny_imagenet_dir = os.path.join(self.data_download_dir, 'tiny-imagenet-200')
         train_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='train', download=False,
-                                                      transform=train_tx)
+                                                      transform=train_tx, preload=True)
         test_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='val',  download=False,
-                                                     transform=train_tx)
+                                                     transform=train_tx, preload=True)
         self.is_one_hot = False
         self.num_classes = 200
 

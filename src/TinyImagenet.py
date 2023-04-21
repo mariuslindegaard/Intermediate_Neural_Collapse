@@ -158,14 +158,14 @@ class TinyImageNetDataset(Dataset):
         tinp = TinyImageNetPaths(root_dir, download)
         self.mode = mode
         self.label_idx = 1  # from [image, id, nid, box]
-        self.preload = False  # preload  # TODO(marius): Debug remove
+        self.preload = None
         self.transform = transform
         self.transform_results = dict()
 
-        self.IMAGE_SHAPE = (64, 64, 3)
+        # self.IMAGE_SHAPE = (64, 64, 3)
 
-        self.img_data = []
-        self.label_data = []
+        self.img_data = None
+        self.lbl_data = None
 
         self.max_samples = max_samples
         self.samples = tinp.paths[mode]
@@ -175,26 +175,24 @@ class TinyImageNetDataset(Dataset):
             self.samples_num = min(self.max_samples, self.samples_num)
             self.samples = np.random.permutation(self.samples)[:self.samples_num]
 
-        if self.preload:
-            raise NotImplementedError("Preloading function for tinyimagenet obsolete after implementing with PIL")
+        if preload:
+            # raise NotImplementedError("Preloading function for tinyimagenet obsolete after implementing with PIL")
             load_desc = "Preloading {} data...".format(mode)
-            self.img_data = np.zeros((self.samples_num,) + self.IMAGE_SHAPE,
-                                     dtype=np.float32)
-            self.label_data = np.zeros((self.samples_num,), dtype=np.int)
-            for idx in tqdm(range(self.samples_num), desc=load_desc):
-                s = self.samples[idx]
-                img = PIL.Image.open(s[0])
-                img = _add_channels(img)
-                self.img_data[idx] = img
-                if mode != 'test':
-                    self.label_data[idx] = s[self.label_idx]
 
-            if load_transform:
-                for lt in load_transform:
-                    result = lt(self.img_data, self.label_data)
-                    self.img_data, self.label_data = result[:2]
-                    if len(result) > 2:
-                        self.transform_results.update(result[2])
+            if mode == 'test':
+                raise NotImplementedError("Test not implemented")
+
+            tmp_img, tmp_lbl = self.__getitem__(0)
+
+            self.img_data = torch.zeros((self.samples_num,) + tmp_img.shape, dtype=tmp_img.dtype)
+            self.lbl_data = torch.zeros((self.samples_num,), dtype=tmp_lbl.dtype)
+
+            for idx in tqdm(range(self.samples_num), desc=load_desc):
+                img, lbl = self.__getitem__(idx)
+                self.img_data[idx] = img
+                self.lbl_data[idx] = lbl
+
+        self.preload = preload
 
     def __len__(self):
         return self.samples_num
@@ -202,12 +200,15 @@ class TinyImageNetDataset(Dataset):
     def __getitem__(self, idx):
         if self.preload:
             img = self.img_data[idx]
-            lbl = None if self.mode == 'test' else self.label_data[idx]
+            # lbl = None if self.mode == 'test' else self.lbl_data[idx]
+            lbl = self.lbl_data[idx]
+            return img, lbl
         else:
             s = self.samples[idx]
             img = PIL.Image.open(s[0])
             img = _add_channels(img)
-            lbl = None if self.mode == 'test' else s[self.label_idx]
+            # lbl = None if self.mode == 'test' else s[self.label_idx]
+            lbl = s[self.label_idx]
 
         # Marius: Transform to torch versions
         lbl = torch.tensor(lbl)
