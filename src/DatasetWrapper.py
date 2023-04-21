@@ -42,6 +42,7 @@ class DatasetWrapper:
             'cifar100': DatasetWrapper.cifar100,
             'imagenet': DatasetWrapper.imagenet,
             'tinyimagenet': DatasetWrapper.tinyimagenet,
+            'tinyimagenet_64': DatasetWrapper.tinyimagenet_64,
             'stl10': DatasetWrapper.stl10,
             'svhn': DatasetWrapper.svhn
         }
@@ -258,6 +259,43 @@ class DatasetWrapper:
 
         test_tx = transforms.Compose([
             transforms.Resize(32),  # Note: Resizing to 32x32 from 64x64
+            transforms.ToTensor(),
+            normalize
+        ])
+        if do_augmentation:
+            raise NotImplementedError("Data augmentation not implemented for TinyImageNet."
+                                      "\nRewrite preloading to allow for non-static transforms.")  # TODO(marius): Implement
+            train_tx = transforms.Compose([
+                transforms.Resize(32),
+                transforms.RandomCrop(64, padding=8),  # Likely non-standard augmentation
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                transforms.ToTensor(),
+                normalize,
+            ])
+        else:
+            train_tx = test_tx
+
+        tiny_imagenet_dir = os.path.join(self.data_download_dir, 'tiny-imagenet-200')
+        train_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='train', download=False,
+                                                      transform=train_tx, preload=True)
+        test_data = TinyImagenet.TinyImageNetDataset(root_dir=tiny_imagenet_dir, mode='val',  download=False,
+                                                     transform=train_tx, preload=True)
+        self.is_one_hot = False
+        self.num_classes = 200
+
+        return train_data, test_data
+
+    def tinyimagenet_64(self, data_cfg: Optional[Dict] = None, download=True):
+        if 'do-augmentation' not in data_cfg.keys():
+            warnings.warn("Parameter 'do-augmentation' not specified in Data in config file. Defaulting to 'False'")
+        do_augmentation = data_cfg.get('do-augmentation', False)
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        test_tx = transforms.Compose([
+            # transforms.Resize(32),  # Note: Resizing to 32x32 from 64x64
             transforms.ToTensor(),
             normalize
         ])
