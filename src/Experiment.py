@@ -149,7 +149,7 @@ class Experiment:
                                initial=start_epoch, total=self.wrapped_optimizer.max_epochs,
                                desc='Epochs',
                                )
-        epoch_acc = None
+        epoch, epoch_acc = None, None
         for epoch in pbar_epoch:
             if epoch in self.logger.log_epochs:
                 self.logger.save_model(self.wrapped_model, epoch, wrapped_optimizer=self.wrapped_optimizer)
@@ -166,11 +166,22 @@ class Experiment:
             pbar_epoch.set_description(f'Epoch, Acc: {epoch_acc: <6.3G}')
             self.wrapped_optimizer.lr_scheduler.step()
 
+            # Break out if the model is not learning
+            if epoch > 20 and epoch_acc < 1.5*(1/self.dataset.num_classes)\
+                    or epoch == 100 and epoch_acc < 0.2:
+                warnings.warn(
+                    f"Ending training early because training accuracy is too low."
+                    f"\n\tEpoch: {epoch}"
+                    f"\n\tTrain accuracy: {epoch_acc}"
+                    f"Try changing the learning rate or reducing weight decay."
+                )
+                break
+
         self.logger.save_model(self.wrapped_model, self.wrapped_optimizer.max_epochs, wrapped_optimizer=self.wrapped_optimizer)
 
         # Write to a file reporting the last accuracy
         if epoch_acc is not None:  # TODO(marius): Make less hacky
-            logfile = Logger.os.path.join(self.logger.save_dirs.base, f'TrAcc={epoch_acc}')
+            logfile = Logger.os.path.join(self.logger.save_dirs.base, f'TrAcc={epoch_acc}_e{epoch}')
             with open(logfile, 'w') as f:
                 pass
 
