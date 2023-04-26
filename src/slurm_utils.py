@@ -260,7 +260,7 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --constraint=high-capacity
 #SBATCH --time=18:00:00
 #SBATCH --exclude=node021,node086
-#SBATCH --mem=20000
+#SBATCH --mem=40000
 #SBATCH --requeue
 # #SBATCH --qos=cbmm  # TODO(marius): Remove cbmm-identifier for submission
 # #SBATCH -p cbmm
