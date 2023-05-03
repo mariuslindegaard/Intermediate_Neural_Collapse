@@ -385,6 +385,7 @@ def get_model(model_cfg: Dict, datasetwrapper: DatasetWrapper):
             'default': [128]*10,
             'wide': [256]*10,
             'deep': [128]*20,
+            'xdeep': [128]*40,
             'deepwide': [256]*20,
             'huge': [512]*20,
         }
