@@ -189,7 +189,7 @@ def write_to_bash_script(idx: int, base_savedir: Logger.SaveDirs, run_savedir: L
         script_f.write(script_content)
 
     # Write path to csv-file in __slurm
-    with open(os.path.join(base_savedir.base, '__slurm/job_path_map.csv'), 'a+') as csv_f:
+    with open(os.path.join(base_savedir.base, '__slurm/path_job_map.csv'), 'a+') as csv_f:
         csv_f.write(f'{idx},{os.path.relpath(run_savedir.base, base_savedir.base)}\n')
 
     return script_path
@@ -258,9 +258,9 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:1  # --constraint=40GB
 #SBATCH --constraint=high-capacity
-#SBATCH --time=18:00:00
+#SBATCH --time=47:59:00
 #SBATCH --exclude=node021,node086
-#SBATCH --mem=40000
+#SBATCH --mem=24000
 #SBATCH --requeue
 # #SBATCH --qos=cbmm  # TODO(marius): Remove cbmm-identifier for submission
 # #SBATCH -p cbmm
