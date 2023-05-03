@@ -8,6 +8,7 @@ import yaml
 from collections import OrderedDict
 import pandas as pd
 import warnings
+import os
 
 import Logger
 from DatasetWrapper import DatasetWrapper
@@ -91,7 +92,8 @@ class Experiment:
 
         tot_correct, tot_samples = 0, 0
         # Iterate over batches to train a single epoch
-        pbar_batch = tqdm.tqdm(self.dataset.train_loader, leave=False)
+        pbar_batch = tqdm.tqdm(self.dataset.train_loader, leave=False,
+                               mininterval=2 if 'SLURM_JOB_ID' in os.environ else 0.1)  # Update rarely if running with slurm
         for batch_index, (inputs, targets) in enumerate(pbar_batch):
             # Load data
             inputs, targets = inputs.to(device), targets.to(device)
@@ -133,7 +135,7 @@ class Experiment:
             if start_epoch >= self.wrapped_optimizer.max_epochs:
                 print("Model already trained, skipping training.")
                 return
-            print("Starting from ")
+            print("Starting from ", start_epoch)
         else:
             start_epoch = 0
 
@@ -163,8 +165,10 @@ class Experiment:
 
             epoch_acc = self._train_single_epoch(linear_warmup=linear_warmup)
 
-            pbar_epoch.set_description(f'Epoch, Acc: {epoch_acc: <6.3G}')
             self.wrapped_optimizer.lr_scheduler.step()
+
+            pbar_epoch.set_description(f'Epoch, Acc: {epoch_acc: <6.3G}')
+            self.logger.write_to_log({'epoch': epoch, 'train_acc': epoch_acc})
 
             # Break out if the model is not learning
             if epoch > 20 and epoch_acc < 1.5*(1/self.dataset.num_classes)\
