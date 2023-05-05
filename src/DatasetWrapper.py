@@ -30,7 +30,7 @@ class DatasetWrapper:
         """Init the dataset with given id"""
         self.data_id = data_cfg['dataset-id']
         self.batch_size = data_cfg['batch-size']
-        self.num_workers = data_cfg.get('num-workers', min(8, os.cpu_count()))  # len(os.sched_getaffinity(0))
+        self.num_workers = data_cfg.get('num-workers', min(16, os.cpu_count()))  # len(os.sched_getaffinity(0))
 
         id_mapping = {
             'cifar10': DatasetWrapper.cifar10,
@@ -239,10 +239,23 @@ class DatasetWrapper:
         else:
             train_tx = test_tx
 
-        # import pdb; pdb.set_trace()
-        train_data = datasets.ImageNet(root=self.data_download_dir, train=True,  # download=False,
+        # Check for the special path to the imagenet data
+        # (It is often easy to create a symlink 'imagenet_data' under the dataset directory to where you keep it)
+        imagenet_path = os.path.join(self.data_download_dir, 'imagenet_data')
+        # Raise error for directory not found
+        if not os.path.exists(imagenet_path):
+            raise FileNotFoundError(
+                f"ImageNet dataset not found."
+                f"Please download it from http://www.image-net.org/ and place it under {imagenet_path}"
+                f"\n\t 1. Create a folder named 'imagenet_dir' under the dataset directory, {self.data_download_dir}"
+                f"\n\t 2. Download the data from http://www.image-net.org/ in the folder 'imagenet_data'"
+                f"\n\t 3. Extract the data inside 'imagenet_data'"
+                f"\nOr just 'ln -s /path/to/imagenet/data {imagenet_path}' if you already got it downloaded somewhere."
+                                    )
+
+        train_data = datasets.ImageNet(root=imagenet_path, train=True,  # download=False,
                                        transform=train_tx)
-        test_data = datasets.ImageNet(root=self.data_download_dir, train=False,  # download=download,
+        test_data = datasets.ImageNet(root=imagenet_path, train=False,  # download=download,
                                       transform=test_tx)
         self.is_one_hot = False
         self.num_classes = 1000
