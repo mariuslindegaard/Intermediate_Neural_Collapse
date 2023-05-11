@@ -41,7 +41,13 @@ class Experiment:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.dataset = DatasetWrapper(data_cfg)
         self.wrapped_model = Models.get_model(model_cfg, self.dataset)
-        self.wrapped_model.base_model.to(device)
+        self.wrapped_model.to(device)
+        # If multi-gpu, wrap model in DistributedDataParallel
+        if torch.cuda.device_count() > 1:
+            if self.wrapped_model.output_layers:
+                warnings.warn('Multi-GPU training with output layers is not supported. '
+                              'Measuring will not be done in parallel.')
+            self.wrapped_model.base_model = nn.parallel.DistributedDataParallel(self.wrapped_model.base_model)
 
         # Instantiate optimizer
         self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)
@@ -205,6 +211,10 @@ class Experiment:
                     continue
         # pbar = tqdm.tqdm(list(reversed(model_path_list)), desc='Checkpoints')
         pbar = tqdm.tqdm(list(reversed(only_priority_paths)), desc='Checkpoints')  # TODO(marius): Debug: Make run over all checkpoints, not just priority
+
+        # If the wrapped model is a DistributedDataParallel model, unwrap it before measuring
+        if isinstance(self.wrapped_model, torch.nn.parallel.DistributedDataParallel):
+            self.wrapped_model.base_model = self.wrapped_model.base_model.module
 
         for model_checkpoint_path in pbar:
             self.wrapped_model, epoch, _ = self.logger.load_model(model_checkpoint_path, ret_model=self.wrapped_model)
