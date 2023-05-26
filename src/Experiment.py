@@ -44,6 +44,7 @@ class Experiment:
         self.wrapped_model.to(device)
         # If multi-gpu, wrap model in DistributedDataParallel
         if torch.cuda.device_count() > 1:
+            print('Using', torch.cuda.device_count(), 'GPUs for training.')
             if self.wrapped_model.output_layers:
                 warnings.warn('Multi-GPU training with output layers is not supported. '
                               'Measuring will not be done in parallel.')
