@@ -1352,6 +1352,8 @@ FAST_TESTSET_MEASURES = [
     # 'ActivationStableRankTestset',
 ]
 
+TMP_MEASURES = FAST_MEASURES + FAST_TESTSET_MEASURES
+
 # SLOW_TESTSET_MEASURES = [
 #     'NC1',
 #     'ActivaitionCovSBs',

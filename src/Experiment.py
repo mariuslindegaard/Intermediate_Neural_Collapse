@@ -64,6 +64,8 @@ class Experiment:
                 measure_strings += Measurer.SLOW_MEASURES
             if 'stablerank' in measurements_cfg['measures'].lower():
                 measure_strings += Measurer.STABLERANK_MEASURE
+            if 'tmp' in measurements_cfg['measures'].lower():
+                measure_strings += Measurer.TMP_MEASURES
             if not measure_strings:
                 raise NotImplementedError(f'Unsupported measure config specified: {measurements_cfg["measures"]}.')
         else:
