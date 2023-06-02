@@ -1,5 +1,10 @@
-# Feature Learning and C-frames in Deep Classifiers through Intermediate Neural Collapse
+# Feature Learning in deep classifiers through Intermediate Neural Collapse
 
+This repository contains the code for the experiments in 
+> [**Feature Learning in deep classifiers through Intermediate Neural Collapse**,
+Rangamani*, Lindegaard*, Galanti, Poggio](https://openreview.net/forum?id=XbggSPNB9W)
+
+published at [ICML 2023](https://icml.cc/Conferences/2023/).
 ## Contents
  - Running the experiments
  - Brief overview of the code structure
@@ -55,8 +60,8 @@ specifications of the experiment in its attributes:
     4. A logging-handler (a `Logger`)
     5. The IDs of the measures (a dictionairy pointing to the different `Measure` classes)
  3. Then, handled by the Experiment functions:
-    1. The model is trained using the specified dataset (calling `experiment.train`), saving checkpoints along the way.
-    2. For each checkpoint, for each specified layer, the `Measure.measure` methods are called, producing a `measure_name.csv` file.
+    1. The model is trained using the specified dataset (calling `experiment.train()`), saving checkpoints along the way.
+    2. For each checkpoint, for each specified layer, the `Measure.measure(...)` methods are called, producing a `measure_name.csv` file.
  4. Finally, `NCPlotter.plot_runs` runs where the measures are saved, creating the relevant plots from the measurement data.
 
 All the files will be put in a log-file specified by the `Logging: log-dir: logs/dir/path`, typically under `logs/`.
