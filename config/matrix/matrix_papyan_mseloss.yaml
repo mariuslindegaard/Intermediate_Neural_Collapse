@@ -24,7 +24,6 @@ Logging:
   save-dir: logs/matrix/papyan_mseloss
   # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
   log-epochs: [0, 1, 2, 3, 5, 10, 20, 40, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350]  # Overrides log-interval
-  # log-epochs: [0, 1, 10, 100, 200, 300, 350]  # Overrides log-interval
 
 Measurements:
   measures: Fast_StableRank
@@ -39,217 +38,59 @@ Measurements:
 Matrix:
   _Exclusive:
     SVHN:
-      _Exclusive:
-        resnet34:
-          Model:
-            model-name: [resnet34]
-            embedding-layers: [[
-              .conv1, .conv2, .conv3,
-              ^avgpool, ^fc
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.009596916]
-        vgg13_bn:
-          Model:
-            model-name: [vgg13_bn]
-            embedding_layers: [[
-              features.0, features.3,
-              features.7, features.10,
-              features.14, features.17,
-              features.21, features.24,
-              features.28, features.31,
-              avgpool,
-              avgpool,
-              classifier.0, classifier.3, classifier.6,
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.018420157]
-        # Densenet3_40:
-        #   Optimizer:
-        #     weight-decay: [5.e-4]
-        #     lr: [0.013295740]
+      resnet34:
+        Model:
+          model-name: [resnet34]
+          embedding-layers: [[
+            .conv1, .conv2, .conv3,
+            ^avgpool, ^fc
+          ]]
+        Optimizer:
+          weight-decay: [5.e-4]
+          lr: [0.009596916]
       Data:
         dataset-id: [SVHN]       # Which dataset-getter to use. Note that shapes are provided by the dataset
 
     MNIST:
-      _Exclusive:
-        vgg11_bn:
-          Model:
-            model-name: [vgg11_bn]
-            embedding_layers: [[
-              features.0,
-              features.4,
-              features.8, features.11,
-              features.15, features.18,
-              features.22, features.25,
-              avgpool,
-              classifier.0, classifier.3, classifier.6,
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.025519618]
-        resnet18:
-          Model:
-            model-name: [resnet18]
-            embedding-layers: [[
-              .conv1, .conv2, .conv3,
-              ^avgpool, ^fc
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.018420157]
-        # Densenet3_40:
-        #   Optimizer:
-        #     weight-decay: [5.e-4]
-        #     lr: [0.025519618]
+      resnet18:
+        Model:
+          model-name: [resnet18]
+          embedding-layers: [[
+            .conv1, .conv2, .conv3,
+            ^avgpool, ^fc
+          ]]
+        Optimizer:
+          weight-decay: [5.e-4]
+          lr: [0.018420157]
       Data:
         dataset-id: [MNIST]       # Which dataset-getter to use. Note that shapes are provided by the dataset
 
     FashionMNIST:
-      _Exclusive:
-        resnet18:
-          Model:
-            model-name: [resnet18]
-            embedding-layers: [[
-              .conv1, .conv2, .conv3,
-              ^avgpool, ^fc
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.094015077]
-        vgg11_bn:
-          Model:
-            model-name: [vgg11_bn]
-            embedding_layers: [[
-              features.0,
-              features.4,
-              features.8, features.11,
-              features.15, features.18,
-              features.22, features.25,
-              avgpool,
-              classifier.0, classifier.3, classifier.6,
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.018420157]
-        # Densenet250:
-        #   Optimizer:
-        #     weight-decay: [5.e-4]
-        #     lr: [0.009596916]
+      resnet18:
+        Model:
+          model-name: [resnet18]
+          embedding-layers: [[
+            .conv1, .conv2, .conv3,
+            ^avgpool, ^fc
+          ]]
+        Optimizer:
+          weight-decay: [5.e-4]
+          lr: [0.094015077]
       Data:
         dataset-id: [FashionMNIST]       # Which dataset-getter to use. Note that shapes are provided by the dataset
 
     CIFAR10:
-      _Exclusive:
-        resnet50:
-          Model:
-            model-name: [resnet50]
-            embedding-layers: [[
-              .conv1, .conv2, .conv3,
-              ^avgpool, ^fc
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.009595916]
-        vgg11_bn:
-          Model:
-            model-name: [vgg11_bn]
-            embedding_layers: [[
-              features.0,
-              features.4,
-              features.8, features.11,
-              features.15, features.18,
-              features.22, features.25,
-              avgpool,
-              classifier.0, classifier.3, classifier.6,
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.025519618]
-        # Densenet100:
-        #   Optimizer:
-        #     weight-decay: [5.e-4]
-        #     lr: [0.048981924]
+      resnet50:
+        Model:
+          model-name: [resnet50]
+          embedding-layers: [[
+            .conv1, .conv2, .conv3,
+            ^avgpool, ^fc
+          ]]
+        Optimizer:
+          weight-decay: [5.e-4]
+          lr: [0.009595916]
       Data:
         dataset-id: [CIFAR10]       # Which dataset-getter to use. Note that shapes are provided by the dataset
 
-    STL-10:
-      _Exclusive:
-        resnet18:
-          Model:
-            model-name: [resnet18]
-            embedding-layers: [[
-              .conv1, .conv2, .conv3,
-              ^avgpool, ^fc
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.06786044]
-        vgg11_bn:
-          Model:
-            model-name: [vgg11_bn]
-            embedding_layers: [[
-              features.0,
-              features.4,
-              features.8, features.11,
-              features.15, features.18,
-              features.22, features.25,
-              avgpool,
-              classifier.0, classifier.3, classifier.6,
-            ]]
-          Optimizer:
-            weight-decay: [5.e-4]
-            lr: [0.018420157]
-        # Densenet201:
-        #   Optimizer:
-        #     weight-decay: [5.e-4]
-        #     lr: [0.001880302]
-      Data:
-        dataset-id: [STL10]       # Which dataset-getter to use. Note that shapes are provided by the dataset
-
-    # TODO(marius): Add "Measurements: measures: Fast_StableRank as default
-    ############################################
-    ############################################
-    # TODO(marius): Add MLPs and Tomer's ConvNets?
-    # mlp_large:
-    #   Model:
-    #     model-name: [mlp_large]
-    #     embedding-layers: [[fc]]
-    #   Measurements:
-    #     measures: [True]
-    #   Optimizer:
-    #     lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
-    #     # lr: [0.01]
-    # mlp_huge:
-    #   Model:
-    #     model-name: [mlp_huge]
-    #     embedding-layers: [[fc]]
-    #   Measurements:
-    #     measures: [Fast_StableRank]
-    #   Optimizer:
-    #     weight-decay: [5.e-4]
-    #     lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
-    #     # lr: [0.01]
-    # convnet_deep:
-    #   Model:
-    #     model-name: [convnet_deep]
-    #     embedding-layers: [[conv, fc]]
-    #   Measurements:
-    #     measures: [Fast_StableRank]
-    #   Optimizer:
-    #     weight-decay: [2.e-3, 5.e-4]
-    #     lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
-    #     # lr: [0.01]
-    # convnet_huge:
-    #   Model:
-    #     model-name: [convnet_huge]
-    #     embedding-layers: [[conv, fc]]
-    #   Measurements:
-    #     measures: [Fast_StableRank]
-    #   Optimizer:
-    #     weight-decay: [5.e-4]
-    #     lr: [0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
-    #     # lr: [0.0025]
 ...

@@ -4,17 +4,10 @@ Model:
   model-name: mlp    # Name of model in "Models.py"
   embedding-layers: [
                       fc
-    # features.0, features.3,
-    # features.4, features.7,
-    # features.8, features.11, features.14,
-    # features.15, features.18, features.21,
-    # features.22, features.25, features.28,
-    # avgpool,
-    # classifier.0, classifier.3, classifier.6,
   ]     # Intermediate layers to use for NC loss with weightings (True=>All layers/default)
 
 Data:
-  dataset-id: cifar10    # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: mnist       # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 128         # Mini-batch size
   do-augmentation: False  # Whether to do data augmentation
 
@@ -25,15 +18,15 @@ Optimizer:
   lr-decay: 0.1
   lr-decay-steps: 1      # Number of learning rate decay steps
   momentum: 0.9          # Optimizer momentum
-  epochs: 1              # Number of epochs to train for
-  warmup_epochs: 0       # Number of epochs to do linear lr-warmup for
+  epochs: 2              # Number of epochs to train for
+  warmup_epochs: 1       # Number of epochs to do linear lr-warmup for
 
 Logging:
   # When to store weights and calculate measurements
   save-dir: logs/debug
   # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
   # log-epochs: [0, 1, 2, 3, 4, 5, 7, 10, 14, 20, 30, 40, 50, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300]  # Overrides log-interval
-  log-epochs: [0, 1, 10]  # Overrides log-interval
+  log-epochs: [0, 1, 2, 10]  # Overrides log-interval
 
 Measurements:
   # measures: Fast_StableRank

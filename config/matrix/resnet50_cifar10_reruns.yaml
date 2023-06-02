@@ -8,7 +8,7 @@ Model:
   ]
 
 Data:
-  dataset-id: CIFAR10       # Which dataset-getter to use. Note that shapes are provided by the dataset
+  dataset-id: CIFAR10    # Which dataset-getter to use. Note that shapes are provided by the dataset
   batch-size: 128        # Mini-batch size
   do-augmentation: False # Whether to do data augmentation
 
@@ -24,10 +24,9 @@ Optimizer:
 
 Logging:
   # When to store weights and calculate measurements
-  save-dir: logs/matrix/papyan_mseloss/resnet50_cifar10_reruns
+  save-dir: logs/matrix/papyan_mseloss_resnet50_cifar10_reruns
   # log-interval: 10        # At what interval to log checkpoints. Always includes first 10 epochs
   log-epochs: [0, 1, 2, 3, 5, 10, 20, 40, 60, 80, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350]  # Overrides log-interval
-  # log-epochs: [0, 1, 10, 100, 200, 300, 350]  # Overrides log-interval
 
 Measurements:
   measures: Fast_StableRank
@@ -44,7 +43,6 @@ Run:
 ##   and choose one of them to parse as another equivalent dictionary of values.
 Matrix:
   Optimizer:
-    # lr: [0.05, 0.07, 0.01, 0.014, 0.02, 0.03, 0.05, 0.07, 0.1]        # Learning rate
     lr: [0.05, 0.03, 0.02, 0.014, 0.01, 0.07, 0.1, 0.07, 0.05]        # Learning rate
   Run:
     run: [0, 1]
