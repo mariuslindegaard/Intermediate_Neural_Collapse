@@ -72,6 +72,12 @@ specifications of the experiment in its attributes:
 
 All the files will be put in a log-file specified by the `Logging: log-dir: logs/dir/path`, typically under `logs/`.
 
+### Inspecting the experiment in debug-mode
+
+As a starting point, `src/simple_debugging_tool.py` is provided to show a simple way to inspect the models and embeddings.
+Check the file for more details on how to load already trained models. It should mesh well with the
+(TODO) accompanying zip-file with the trained models on which measurements for the paper were performed.
+
 ### Parameter search in a single config file
 
 Some of the config files (typically `config/matrix/somename.yaml`) contain a `Matrix` parameter.
