@@ -44,11 +44,14 @@ class Experiment:
         self.wrapped_model.to(device)
         # If multi-gpu, wrap model in DistributedDataParallel
         if torch.cuda.device_count() > 1:
-            print('Using', torch.cuda.device_count(), 'GPUs for training.')
-            if self.wrapped_model.output_layers:
-                warnings.warn('Multi-GPU training with output layers is not supported. '
-                              'Measuring will not be done in parallel.')
-            self.wrapped_model.base_model = nn.parallel.DistributedDataParallel(self.wrapped_model.base_model)
+            warnings.warn('Multi-GPU training is untested. Change the following line to use multiple GPUs.')
+            use_multiple_gpus = False
+            if use_multiple_gpus:
+                # print('Using', torch.cuda.device_count(), 'GPUs for training.')
+                if self.wrapped_model.output_layers:
+                    warnings.warn('Multi-GPU training with output layers is not supported. '
+                                  'Measuring will not be done in parallel.')
+                self.wrapped_model.base_model = nn.parallel.DistributedDataParallel(self.wrapped_model.base_model)
 
         # Instantiate optimizer
         self.wrapped_optimizer = OptimizerWrapper(self.wrapped_model, optimizer_cfg)
