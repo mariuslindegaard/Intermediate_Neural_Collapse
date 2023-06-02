@@ -5,6 +5,12 @@ This repository contains the code for the experiments in
 Rangamani*, Lindegaard*, Galanti, Poggio](https://openreview.net/forum?id=XbggSPNB9W)
 
 published at [ICML 2023](https://icml.cc/Conferences/2023/).
+
+This branch ([ICML2023](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse/tree/ICML2023)) contains
+the code relevant for the paper at time of conference publication.
+The master branch ([master](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse)) may contain more updated
+code, more features (e.g. more datasets) and configs, but might as a consequence be more difficult to navigate.
+
 ## Contents
  - Running the experiments
  - Brief overview of the code structure
