@@ -257,17 +257,14 @@ _SBATCH_SCRIPT_STUMP = \
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:1  # --constraint=40GB
-#SBATCH --constraint=high-capacity
 #SBATCH --time=47:59:00
-#SBATCH --exclude=node021,node086
 #SBATCH --mem=24000
 #SBATCH --requeue
-# #SBATCH --qos=cbmm  # TODO(marius): Remove cbmm-identifier for submission
+# #SBATCH --constraint=high-capacity
+# #SBATCH --exclude=node021,node086
+# #SBATCH --qos=cbmm
 # #SBATCH -p cbmm
 # #SBATCH --output=./output.log
-
-# #SBATCH --mail-user=lindegrd@mit.edu  # TODO(marius): Remove email identifier
-# #SBATCH --mail-type=ALL
 
 # memory 1000 MiB
 # gpu_mem 10904 MiB
