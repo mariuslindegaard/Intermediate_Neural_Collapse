@@ -31,17 +31,17 @@ python3 main.py --config ../config/debug.yaml
 ```
 which will give checkpoints, measurements, and plots in `logs/debug/`.
 
-The actual experiments are time consuming enough that it is advisable to use slurm on a gpu cluster.
+The actual experiments are time-consuming enough that it is *highly* advisable to use slurm on a gpu cluster.
 To run the actual experiments in slurm, run
 ```shell
-python3 main.py --config ../config/matrix/resnets.yaml  --matrix --slurm
-python3 main.py --config ../config/matrix/customnets.yaml --matrix --slurm
+python3 main.py --config ../config/matrix/matrix_papyan_mseloss.yaml  --matrix --slurm  # For resnets
+python3 main.py --config ../config/matrix/matrix_customnets_param_search.yaml --matrix --slurm  # For other networks
 ```
 which will send the jobs to the slurm scheduler.
 
-To conserve computational resources, it can be useful to run a minimal example:
+To conserve computational resources, it can be useful to first run a minimal example:
 ```shell
-python3 main.py --config ../config/minimal_example.yaml --matrix --slurm
+python3 main.py --config ../config/matrix_debug.yaml --matrix --slurm
 ```
 
 The experiments can also run without the slurm scheduler by dropping the `--slurm` flag, but will then run serially.
@@ -75,5 +75,8 @@ hyperparameters/config used in this specific run, and place the relevant config 
 ### Flags 
 Depending on the additional flags set, either:
  - If no additional flags, the runs will be performed sequentially. *This is not reccommended as it might take days to run.*
- - If the `-s` (`--slurm`) flag is set, the tasks will be submitted in parallel to a local slurm job manager. *This is the recommended way to run the experiments.*
- - A dry run will be performed (`-d` or `--dry_run`), showing details of the different runs and configs without actually running the experiments nor creating the folder structure.
+ - If the `-s` (`--slurm`) flag is set, the tasks will be submitted in parallel to a local slurm job manager.
+   *This is the recommended way to run the experiments.*
+ - A dry run will be performed if `-d` (`--dry_run`) is set, showing details of the different runs and configs
+   without actually running the experiments nor creating the folder structure.
+ - For other flags, refer to `src/main.py` or run `python3 main.py -h`.
