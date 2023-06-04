@@ -6,10 +6,10 @@ Rangamani*, Lindegaard*, Galanti, Poggio](https://openreview.net/forum?id=XbggSP
 
 published at [ICML 2023](https://icml.cc/Conferences/2023/).
 
-Check out the ([ICML2023](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse/tree/ICML2023)) branch for
+Check out the [ICML2023 branch](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse/tree/ICML2023) for
 a more readable version of the repository that contains the code relevant for the paper
 at time of conference publication, with largely the same features.
-The master branch ([master](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse)) may contain more updated
+The [master branch](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse) may contain more updated
 code, more features (e.g. more datasets) and configs, but might as a consequence be more difficult to navigate.
 Other brances (e.g. [dev/master](https://github.com/mariuslindegaard/Intermediate_Neural_Collapse/tree/dev/master))
 might be unstable.
